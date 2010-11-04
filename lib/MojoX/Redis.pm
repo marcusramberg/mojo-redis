@@ -85,6 +85,11 @@ sub _send_next_message {
 sub _on_connect {
     my ($self, $ioloop, $id) = @_;
     delete $self->{_connecting};
+
+    # Kept connection alive (not forever, just first 10 years)
+    # YES! It is the only way to disable timeout
+    $ioloop->connection_timeout( $id => 315360000 );
+
     $self->_send_next_message;
 }
 
