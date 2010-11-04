@@ -77,7 +77,7 @@ sub _send_next_message {
     {
         my ($message, $cb) = @{shift @{$self->{_queue}}};
         $self->ioloop->write( $c, $message );
-        $self->{_command_cb} = $cb;
+        $self->{_command_cb} = $cb || sub {};
         $self->error( undef );
     }
 }
@@ -97,7 +97,7 @@ sub _return_command_data {
     my ($self, @data) = @_;
 
     my $cb = $self->{_command_cb};
-    $cb->( @data ) if defined $cb;
+    $cb->( @data );
 
     delete $self->{_command_cb};
     $self->_send_next_message;
