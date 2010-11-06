@@ -72,15 +72,14 @@ sub execute {
 sub _send_next_message {
     my ($self) = @_;
 
-    $self->{_queue} ||= [];
-    if ( (my $c = $self->{_connection}) && !$self->{_connecting}
-        && !$self->{_command_cb}  && @{$self->{_queue}}
-    )
-    {
-        my ($message, $cb) = @{shift @{$self->{_queue}}};
-        $self->ioloop->write( $c, $message );
-        $self->{_command_cb} = $cb || sub {};
-        $self->error( undef );
+    $self->{_queue}    ||= [];
+    $self->{_cb_queue} ||= [];
+    if ( (my $c = $self->{_connection}) && !$self->{_connecting} ) {
+        foreach my $msg ( @{$self->{_queue}} ) {
+            my ($message, $cb) = @$msg;
+            $self->ioloop->write( $c, $message );
+            push @{$self->{_cb_queue}}, $cb;
+        }
     }
 }
 
@@ -96,11 +95,10 @@ sub _on_connect {
 sub _return_command_data {
     my ($self, @data) = @_;
 
-    my $cb = $self->{_command_cb};
-    $cb->( @data );
+    my $cb = shift @{$self->{_cb_queue}};
+    $cb->( @data ) if $cb;
 
-    delete $self->{_command_cb};
-    $self->_send_next_message;
+    $self->error( undef );
 }
 
 sub _on_error {
@@ -120,11 +118,7 @@ sub _on_hup {
 sub _inform_queue {
     my ($self) = @_;
 
-    $self->{_command_cb}->() if $self->{_command_cb};
-    delete $self->{_command_cb};
-
-    for my $message ( @{$self->{_queue}} ) {
-        my $cb = $message->[1];
+    for my $cb ( @{$self->{_cb_queue}} ) {
         $cb->() if $cb;
     }
     $self->{_queue} = [];
