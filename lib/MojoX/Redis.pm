@@ -11,6 +11,7 @@ use Mojo::IOLoop;
 __PACKAGE__->attr( server => '127.0.0.1:6379' );
 __PACKAGE__->attr( ioloop => sub { Mojo::IOLoop->singleton } );
 __PACKAGE__->attr( error  => undef );
+__PACKAGE__->attr( timeout=> 300 );
 
 sub connect {
     my $self = shift;
@@ -86,9 +87,7 @@ sub _on_connect {
     my ($self, $ioloop, $id) = @_;
     delete $self->{_connecting};
 
-    # Kept connection alive (not forever, just first 10 years)
-    # YES! It is the only way to disable timeout
-    $ioloop->connection_timeout( $id => 315360000 );
+    $ioloop->connection_timeout( $id => $self->timeout );
 
     $self->_send_next_message;
 }
@@ -139,6 +138,18 @@ sub _on_error {
     my ($self, $ioloop, $id, $error) = @_;
 
     $self->error( $error );
+    $self->_inform_queue;
+}
+
+sub _on_hup {
+    my ($self, $ioloop, $id) = @_;
+
+    $self->{error} ||= 'disconnected';
+    $self->_inform_queue;
+}
+
+sub _inform_queue {
+    my ($self) = @_;
 
     $self->{_command_cb}->() if $self->{_command_cb};
     delete $self->{_command_cb};
@@ -148,13 +159,6 @@ sub _on_error {
         $cb->() if $cb;
     }
     $self->{_queue} = [];
-}
-
-sub _on_hup {
-    my ($self, $ioloop, $id) = @_;
-
-    delete $self->{_connection};
-    delete $self->{_connecting};
 }
 
 sub _read_bulk_reply {
