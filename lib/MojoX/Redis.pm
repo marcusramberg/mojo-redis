@@ -7,6 +7,7 @@ our $VERSION = 0.1;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
+use List::Util ();
 
 __PACKAGE__->attr( server => '127.0.0.1:6379' );
 __PACKAGE__->attr( ioloop => sub { Mojo::IOLoop->singleton } );
@@ -30,7 +31,7 @@ sub connect {
         address    => $address,
         port       => $port,
         on_connect => sub { $self->_on_connect(@_) },
-        on_read    => sub { $self->_on_read(@_)    },
+        on_read    => sub { $self->_read_wait_command(@_)    },
         on_error   => sub { $self->_on_error(@_)   },
         on_hup     => sub { $self->_on_hup(@_)     },
     });
@@ -62,7 +63,7 @@ sub execute {
 
     push @$queue, [ $message, $cb ];
 
-    $self->connect unless ($self->{_connection} || $self->{_connecting});
+    $self->connect unless $self->{_connection};
     $self->_send_next_message;
     
     return $self;
@@ -102,38 +103,6 @@ sub _return_command_data {
     $self->_send_next_message;
 }
 
-sub _on_read {
-    my ($self, $ioloop, $id, $chunk) = @_;
-    $self->{_buffer} .= $chunk;
-    if ( $self->{_buffer}=~s{^([-+\:])([^\r\n]+)\r\n}{} ) {
-        my ($status, $reply) = ($1, $2);
-        if ($status eq '+' or $status eq ':') {
-            $self->_return_command_data( [$reply] );
-        } else {
-            $self->error( $reply );
-            $self->_return_command_data( undef );
-        };
-    } elsif ( my ($message, $reply) = $self->_read_bulk_reply( $self->{_buffer} ) ) {
-        $self->{_buffer} = $message;
-        $self->_return_command_data( [$reply] );
-    } elsif ( $self->{_buffer} =~m{^\*(\d+)\r\n}p ) {
-        my $count = $1;
-        my $message = ${^POSTMATCH};
-        my $reply;
-        my @replies;
-        for (1..$count) {
-            if ( ($message, $reply) = $self->_read_bulk_reply( $message ) ) {
-                push @replies, $reply;
-            } else {
-                # Not full command
-                return
-            }
-        };
-        $self->{_buffer} = $message;
-        $self->_return_command_data( \@replies );
-    }
-}
-
 sub _on_error {
     my ($self, $ioloop, $id, $error) = @_;
 
@@ -161,17 +130,132 @@ sub _inform_queue {
     $self->{_queue} = [];
 }
 
-sub _read_bulk_reply {
-    my ($self, $message) = @_;
-     
-    if ( $message=~m{^\$(\d+)\r\n}p ) {
-        my $length = $1;
-        return (${^POSTMATCH}, undef) if $length == -1;
-        if ( ${^POSTMATCH}=~m{^(.{$length,$length})\r\n}p ) {
-            return ${^POSTMATCH}, $1;
-        }
+sub _read_wait_command {
+    my ($self, $ioloop, $id, $chunk) = @_;
+
+    my $cmd = substr $chunk, 0, 1, '';
+    if ( !defined $chunk || $chunk eq '' ) {
+        # Wait next command
+        $ioloop->on_read( $id => sub { $self->_read_wait_command( @_ ) } );
     }
-    return;
+    elsif ( List::Util::first { $cmd eq $_ } ('+', '-', ':') ) {
+        # Just a simple one line command
+        $self->{_read_cmd_string} = '';
+        if ( $cmd ne '-' ) {
+            $self->{_read_cb} = sub { $self->_return_command_data( shift ); $self->_read_wait_command( $ioloop, $id, shift );  };
+        } else {
+            $self->{_read_cb} = sub { $self->error(shift->[0]); $self->_return_command_data(undef); $self->_read_wait_command( $ioloop, $id, shift );  };
+        }
+
+        $ioloop->on_read( $id => sub { $self->_read_string_command( @_ ); } );
+        $self->_read_string_command( $ioloop, $id, $chunk );
+
+    } elsif ( $cmd eq '$' ) {
+        # Bulk command, not a big deal
+        $self->{_read_cb} = sub { $self->_return_command_data(shift); $self->_read_wait_command( $ioloop, $id, shift );  };
+        # Yes, it should have leading $
+        $self->_read_bulk_command( $ioloop, $id, "\$$chunk" );
+    } elsif ( $cmd eq '*' ) {
+        $self->{_read_cb} = sub { $self->_return_command_data(shift); $self->_read_wait_command( $ioloop, $id, shift );  };
+        $self->_read_multi_bulk_command( $ioloop, $id, $chunk );
+    } else {
+        die qq{Strange input "$cmd$chunk"};
+    }
+}
+
+sub _read_string_command {
+    my ($self, $ioloop, $id, $chunk) = @_;
+
+    my $str = $self->{_read_cmd_string} .= $chunk;
+    my $i = index $str, "\r\n";
+
+    if ( $i >= 0 ) {
+        # Got full command
+        my $result = substr $str, 0, $i, '';
+        substr $str, 0, 2, ''; # Delete \r\n
+
+        #print "## $result\n## $str\n";
+        my $cb = $self->{_read_cb};
+        delete $self->{_read_cb};
+        delete $self->{_read_cmd_string};
+        $cb->( [$result], $str );
+    }
+}
+
+sub _read_multi_bulk_command {
+    my ($self, $ioloop, $id, $chunk) = @_;
+
+    delete $self->{_read_cmd_num};
+
+    my $mbulk_cb = $self->{_read_cb};
+
+    my $results = [];
+    my $mbulk_process;
+    $mbulk_process = sub {
+        push @$results, shift->[0];
+
+        if ( scalar @$results == $self->{_read_cmd_num}) {
+            $mbulk_process = undef;
+            $mbulk_cb->($results, shift);
+        } else {
+            # Read another string
+            #print "### Got another result: ", $results->[-1], "\n";;
+            $self->{_read_cb} = $mbulk_process;
+            $self->_read_bulk_command( $ioloop, $id, shift );
+        }
+    };
+
+    # Read number of commands
+    $self->{_read_cb} = sub {
+        $self->{_read_cmd_num} = shift->[0];
+        #print "Got #commands: ", $self->{_read_cmd_num}, "\n";
+        $self->{_read_cb} = $mbulk_process;
+        $ioloop->on_read( $id => sub { $self->_read_bulk_command( @_ ) } );
+        $self->_read_bulk_command( $ioloop, $id, shift );
+    };
+
+    $ioloop->on_read( $id => sub { $self->_read_string_command( @_ ); } );
+    $self->_read_string_command( $ioloop, $id, $chunk );
+}
+
+sub _read_bulk_command {
+    my ($self, $ioloop, $id, $chunk) = @_;
+
+    delete $self->{_read_cmd_legth};
+
+    my $bulk_cb = $self->{_read_cb};
+
+    # Read size of string
+    $self->{_read_cb} = sub {
+        my $size = shift->[0];
+        # Delete leading $
+        substr $size, 0, 1, ""; 
+        $self->{_read_cmd_legth} = $size;
+        #print "Got size: ", $self->{_read_cmd_legth}, "\n";
+        $self->{_read_cb} = $bulk_cb;
+        $ioloop->on_read( $id => sub { $self->_read_bulk_command( @_ ) } );
+        $self->_read_bulk_command_string( $ioloop, $id, shift );
+    };
+
+    $ioloop->on_read( $id => sub { $self->_read_string_command( @_ ); } );
+    $self->_read_string_command( $ioloop, $id, $chunk );
+}
+
+sub _read_bulk_command_string {
+    my ($self, $ioloop, $id, $chunk) = @_;
+
+    my $str = $self->{_read_cmd_string} .= $chunk;
+    #print "String $str\n";
+    if ( length $str >= $self->{_read_cmd_legth} ) {
+        my $result = substr $str, 0, $self->{_read_cmd_legth}, "";
+        substr $str, 0, 2, ""; # Delete \r\n
+
+        #print "## str result $result\n";
+        my $cb = $self->{_read_cb};
+        delete $self->{_read_cb};
+        delete $self->{_read_cmd_string};
+        $cb->( [$result], $str );
+    }
 }
 
 1;
