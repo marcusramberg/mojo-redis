@@ -10,7 +10,7 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 10;
+plan tests => 11;
 
 use_ok 'MojoX::Redis';
 
@@ -23,20 +23,22 @@ $redis->execute(ping => sub { is_deeply shift, ['PONG'], "Line result test" })
         is_deeply shift, undef, 'Uknown command result';
         is $redis->error, q|ERR unknown command 'QWE'|;
     }
-  )->execute(
-    set => [test => 'test_ok'],
-    sub { is_deeply shift, ['OK'], "Another line result" }
-  )->execute(
-    get => 'test',
-    sub { is_deeply shift, ['test_ok'], "Bulk result" }
-  )->execute(del => 'test')->execute(rpush => [test => 'test1'])
-  ->execute(rpush => [test => 'test2'])->execute(
-    lrange => ['test', 0, -1],
-    sub { is_deeply shift, ["test1", "test2"], "Multy-bulk result"; }
-  )->execute(set => [test => 'привет'])->execute(
-    get => 'test',
-    sub { is_deeply shift, ['привет'], "Unicode test" }
-  )->execute(
+  )
+  ->execute(set => [test => 'test_ok'] =>
+      sub { is_deeply shift, ['OK'], "Another line result" })
+  ->execute(
+    get => 'test' => sub { is_deeply shift, ['test_ok'], "Bulk result" })
+  ->execute(del => 'test')->execute(rpush => [test => 'test1'])
+  ->execute(rpush => [test => 'test2'])
+  ->execute(lrange => ['test', 0, -1] =>
+      sub { is_deeply shift, ["test1", "test2"], "Multy-bulk result"; })
+  ->execute(set => [test => 'привет'])
+  ->execute(
+    get => test => sub { is_deeply shift, ['привет'], "Unicode test" })
+  ->execute(del => 'test')
+  ->execute(
+    get => test => sub { is_deeply shift, [], "nil return check" })
+  ->execute(
     ping => sub {
         is_deeply shift, ['PONG'], "Last check";
         Mojo::IOLoop->singleton->stop;

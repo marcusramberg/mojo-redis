@@ -60,7 +60,6 @@ sub execute {
     foreach my $token (@$args) {
         Mojo::Util::encode($self->encoding, $token) if $self->encoding;
         $message .= '$' . length($token) . "\r\n" . "$token\r\n";
-
     }
     $message .= "\r\n";
 
@@ -257,7 +256,8 @@ sub _read_bulk_command {
 
     # Read size of string
     $self->{_read_cb} = sub {
-        my $size = shift->[0];
+        my $size  = shift->[0];
+        my $chunk = shift;
 
         # Delete leading $
         substr $size, 0, 1, "";
@@ -265,8 +265,15 @@ sub _read_bulk_command {
 
         #print "Got size: ", $self->{_read_cmd_legth}, "\n";
         $self->{_read_cb} = $bulk_cb;
-        $ioloop->on_read($id => sub { $self->_read_bulk_command(@_) });
-        $self->_read_bulk_command_string($ioloop, $id, shift);
+
+        if ($size == '-1') {
+            $self->{_read_cb}->([], $chunk);
+        }
+        else {
+            $ioloop->on_read(
+                $id => sub { $self->_read_bulk_command_string(@_) });
+            $self->_read_bulk_command_string($ioloop, $id, $chunk);
+        }
     };
 
     $ioloop->on_read($id => sub { $self->_read_string_command(@_); });
