@@ -10,7 +10,7 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 11;
+plan tests => 12;
 
 use_ok 'MojoX::Redis';
 
@@ -37,13 +37,14 @@ $redis->execute(ping => sub { is_deeply shift, ['PONG'], "Line result test" })
     get => test => sub { is_deeply shift, ['привет'], "Unicode test" })
   ->execute(del => 'test')
   ->execute(
-    get => test => sub { is_deeply shift, [], "nil return check" })
-  ->execute(
+    get => test => sub { is_deeply shift, [], "bulk nil return check" })
+  ->execute(lrange => ['test', 0, -1] =>
+      sub { is_deeply shift, [], "multi-bulk nil return check" })->execute(
     ping => sub {
         is_deeply shift, ['PONG'], "Last check";
         Mojo::IOLoop->singleton->stop;
     }
-  );
+      );
 
 Mojo::IOLoop->singleton->start;
 

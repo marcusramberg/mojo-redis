@@ -236,11 +236,18 @@ sub _read_multi_bulk_command {
     # Read number of commands
     $self->{_read_cb} = sub {
         $self->{_read_cmd_num} = shift->[0];
+        my $chunk = shift;
+
+        if ($self->{_read_cmd_num} == 0) {
+            $mbulk_process = undef;
+            $mbulk_cb->($results, $chunk);
+            return;
+        }
 
         #print "Got #commands: ", $self->{_read_cmd_num}, "\n";
         $self->{_read_cb} = $mbulk_process;
         $ioloop->on_read($id => sub { $self->_read_bulk_command(@_) });
-        $self->_read_bulk_command($ioloop, $id, shift);
+        $self->_read_bulk_command($ioloop, $id, $chunk);
     };
 
     $ioloop->on_read($id => sub { $self->_read_string_command(@_); });
