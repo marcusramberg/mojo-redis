@@ -10,10 +10,11 @@ use Mojo::IOLoop;
 use List::Util ();
 use Mojo::Util ();
 
-__PACKAGE__->attr(server  => '127.0.0.1:6379');
-__PACKAGE__->attr(ioloop  => sub { Mojo::IOLoop->singleton });
-__PACKAGE__->attr(error   => undef);
-__PACKAGE__->attr(timeout => 300);
+__PACKAGE__->attr(server   => '127.0.0.1:6379');
+__PACKAGE__->attr(ioloop   => sub { Mojo::IOLoop->singleton });
+__PACKAGE__->attr(error    => undef);
+__PACKAGE__->attr(timeout  => 300);
+__PACKAGE__->attr(encoding => 'UTF-8');
 
 sub connect {
     my $self = shift;
@@ -57,7 +58,7 @@ sub execute {
 
     my $message = '*' . scalar(@$args) . "\r\n";
     foreach my $token (@$args) {
-        Mojo::Util::encode('UTF-8', $token);
+        Mojo::Util::encode($self->encoding, $token) if $self->encoding;
         $message .= '$' . length($token) . "\r\n" . "$token\r\n";
 
     }
@@ -102,8 +103,8 @@ sub _return_command_data {
     if ($cb) {
 
         # Decode data
-        if ($data) {
-            Mojo::Util::decode('UTF-8', $_) for @$data;
+        if ($self->encoding && $data) {
+            Mojo::Util::decode($self->encoding, $_) for @$data;
         }
         $cb->($data);
     }
