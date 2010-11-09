@@ -1,7 +1,8 @@
 This file documents the revision history for Perl extension MojoX::Redis
 
 0.3 2010-11-09 00:00:00
-        - Fixed unicode support
+        - Fixed encoding support
+        - Processing nil values
 
 0.2 2010-11-06 00:00:00
         - Nice pipline command parsing
