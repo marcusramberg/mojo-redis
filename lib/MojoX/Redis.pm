@@ -63,9 +63,12 @@ sub execute {
     }
     $message .= "\r\n";
 
-    my $queue = $self->{_queue} ||= [];
+    my $mqueue = $self->{_message_queue} ||= [];
+    my $cqueue = $self->{_cb_queue}      ||= [];
 
-    push @$queue, [$message, $cb];
+
+    push @$mqueue, $message;
+    push @$cqueue, $cb;
 
     $self->connect unless $self->{_connection};
     $self->_send_next_message;
@@ -76,13 +79,9 @@ sub execute {
 sub _send_next_message {
     my ($self) = @_;
 
-    $self->{_queue}    ||= [];
-    $self->{_cb_queue} ||= [];
     if ((my $c = $self->{_connection}) && !$self->{_connecting}) {
-        foreach my $msg (@{$self->{_queue}}) {
-            my ($message, $cb) = @$msg;
+        while (my $message = shift @{$self->{_message_queue}}) {
             $self->ioloop->write($c, $message);
-            push @{$self->{_cb_queue}}, $cb;
         }
     }
 }
