@@ -238,7 +238,7 @@ sub _read_multi_bulk_command {
         $self->{_read_cmd_num} = shift->[0];
         my $chunk = shift;
 
-        if ($self->{_read_cmd_num} == 0) {
+        if ($self->{_read_cmd_num} < 1) {
             $mbulk_process = undef;
             $mbulk_cb->($results, $chunk);
             return;
