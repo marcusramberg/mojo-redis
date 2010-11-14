@@ -3,7 +3,7 @@ package MojoX::Redis;
 use strict;
 use warnings;
 
-our $VERSION = 0.3;
+our $VERSION = 0.4;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -105,9 +105,11 @@ sub _return_command_data {
         if ($self->encoding && $data) {
             Mojo::Util::decode($self->encoding, $_) for @$data;
         }
-        $cb->($data);
+
+        $cb->($self, $data);
     }
 
+    # Reset error after callback dispatching
     $self->error(undef);
 }
 
@@ -129,7 +131,7 @@ sub _inform_queue {
     my ($self) = @_;
 
     for my $cb (@{$self->{_cb_queue}}) {
-        $cb->() if $cb;
+        $cb->($self) if $cb;
     }
     $self->{_queue} = [];
 }
@@ -310,23 +312,23 @@ __END__
 
 =head1 NAME
 
-MojoX::Redis - asynchronous Redis client based on Mojo
+L<MojoX::Redis> - asynchronous Redis client based on Mojo
 
 =head1 SYNOPSIS
 
     use MojoX::Redis;
 
     # Create redis client 
-    my $r = MojoX::Redis->new( server => '127.0.0.1:6379' );
+    my $redis = MojoX::Redis->new( server => '127.0.0.1:6379' );
 
     # Execute some commands
     $r->execute( ping, sub {
-        my $res = shift;
+        my ($redis, $res) = @_;
 
         if ( $res ) {
             print "Got result: ", $res->[0], "\n";
         } else {
-            print "Error: ", $r->error, "\n";
+            print "Error: ", $redis->error, "\n";
         }
         $r->ioloop->stop;
     }
@@ -336,7 +338,77 @@ MojoX::Redis - asynchronous Redis client based on Mojo
 
 =head1 DESCRIPTION
 
-MojoX::Redis works
+L<MojoX::Redis> is an asynchronous client to Redis for Mojo.
+
+=head1 ATTRIBUTES
+
+L<MojoX::Redis> implements the following attributes.
+
+=head2 C<server>
+
+    my $server = $redis->server;
+    $redis     = $redis->server('127.0.0.1:6379');
+
+C<Redis> server connection string, defaults to '127.0.0.1:6379'.
+
+=head2 C<ioloop>
+
+    my $ioloop = $redis->ioloop;
+    $redis     = $redis->ioloop(Mojo::IOLoop->new);
+
+Loop object to use for io operations, by default a L<Mojo::IOLoop> singleton
+object will be used.
+
+=head2 C<timeout>
+
+    my $timeout = $redis->timeout;
+    $redis      = $redis->timeout(100);
+
+Maximum amount of time in seconds a connection can be inactive before being
+dropped, defaults to C<300>.
+
+=head2 C<encoding>
+
+    my $encoding = $redis->encoding;
+    $redis       = $redis->encoding('UTF-8');
+
+Encoding used for stored data, defaults to C<UTF-8>.
+
+=head1 METHODS
+
+L<MojoX::Redis> inherits all methods from l<Mojo::Base> and implements
+the following ones.
+
+=head2 C<connect>
+
+    $redis = $redis->connect;
+
+Connect to C<Redis> server.
+
+=head2 C<execute>
+
+    $redis = $redis->execute("ping" => sub{
+        my ($redis, $result) = @_;
+
+        # Process result
+    });
+    $redis->execute(lrange => ["test", 0, -1] => sub {...});
+    $redis->execute(set => [test => "test_ok"]);
+
+Execute specified command on C<Redis> server. If error occured during
+request $result will be set to undef, error string can be obtained with 
+$redis->error.
+
+=head2 C<error>
+
+    $redis->execute("ping" => sub {
+        my ($redis, $result) = @_;
+        die $redis->error unless defined $result;
+    }
+
+Returns error occured during command execution.
+Note that this method returns error code just from current command and
+can be used just in callback.
 
 =head1 SEE ALSO
 
