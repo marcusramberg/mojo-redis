@@ -9,7 +9,8 @@ between sets, and so forth. L<Redis> supports different kind of sorting
 abilities.
 L<MojoX::Redis> is asynchronous client for L<Redis> for Mojo.
 
-=head2 Usage Example
+=head2 Usage example
+
     use MojoX::Redis;
 
     my $redis = MojoX::Redis->new;
