@@ -312,7 +312,7 @@ __END__
 
 =head1 NAME
 
-L<MojoX::Redis> - asynchronous Redis client based on Mojo
+L<MojoX::Redis> - asynchronous L<Redis> client for L<Mojo>.
 
 =head1 SYNOPSIS
 
