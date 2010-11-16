@@ -312,7 +312,7 @@ __END__
 
 =head1 NAME
 
-L<MojoX::Redis> - asynchronous L<Redis> client for L<Mojo>.
+L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
 
 =head1 SYNOPSIS
 
@@ -412,11 +412,11 @@ can be used just in callback.
 
 =head1 SEE ALSO
 
-L<Mojolicious>, L<Mojolicious::IOLoop>
+L<Mojolicious>, L<Mojo::IOLoop>
 
 =head1 AUTHOR
 
-Sergey Zasenko, C<d3fin3@gmail.com>.
+Sergey Zasenko, C<undef@cpan.org>.
 
 =head1 COPYRIGHT AND LICENSE
 
