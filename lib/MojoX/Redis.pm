@@ -76,6 +76,13 @@ sub execute {
     return $self;
 }
 
+sub start {
+    my ($self) = @_;
+
+    $self->ioloop->start;
+    return $self;
+}
+
 sub _send_next_message {
     my ($self) = @_;
 
@@ -409,6 +416,12 @@ $redis->error.
 Returns error occured during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
+
+=head2 C<start>
+
+    $redis->start;
+
+Starts IOLoop. Shortcut for $redis->ioloop->start;
 
 =head1 SEE ALSO
 
