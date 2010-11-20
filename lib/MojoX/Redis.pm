@@ -322,7 +322,7 @@ L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
     my $redis = MojoX::Redis->new( server => '127.0.0.1:6379' );
 
     # Execute some commands
-    $r->execute( ping, sub {
+    $redis->execute(ping, sub {
         my ($redis, $res) = @_;
 
         if ( $res ) {
@@ -330,11 +330,11 @@ L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
         } else {
             print "Error: ", $redis->error, "\n";
         }
-        $r->ioloop->stop;
-    }
+        $redis->ioloop->stop;
+    });
 
     # ioloop should be running
-    $r->ioloop->start;
+    $redis->ioloop->start;
 
 =head1 DESCRIPTION
 
