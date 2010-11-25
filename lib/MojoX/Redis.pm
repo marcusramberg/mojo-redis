@@ -16,6 +16,17 @@ __PACKAGE__->attr(error    => undef);
 __PACKAGE__->attr(timeout  => 300);
 __PACKAGE__->attr(encoding => 'UTF-8');
 
+sub DESTROY {
+    my $self = shift;
+
+    # Loop
+    return unless my $loop = $self->ioloop;
+
+    # Cleanup connection
+    $loop->drop($self->{_connection})
+        if $self->{_connection};
+}
+
 sub connect {
     my $self = shift;
 

@@ -39,10 +39,10 @@ $redis->execute(
         is_deeply $_[1], ["test1", "test2"], "Multy-bulk result";
     }
   )->execute(set => [test => 'привет'])->execute(
-    get => test,
+    get => 'test',
     sub { is_deeply $_[1], ['привет'], "Unicode test" }
   )->execute(del => 'test')->execute(
-    get => test,
+    get => 'test',
     sub { is_deeply $_[1], [], "bulk nil return check" }
   )->execute(
     lrange => ['test', 0, -1],
@@ -53,7 +53,7 @@ $redis->execute(
     ping => sub {
         is_deeply $_[1], ['PONG'], "Last check";
     }
-  )->execute(quit,
-    sub { shift->stop; }
+  )->execute('quit',
+      sub { shift->stop; }
   )->start;
 
