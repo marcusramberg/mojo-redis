@@ -83,6 +83,13 @@ sub start {
     return $self;
 }
 
+sub stop {
+    my ($self) = @_;
+
+    $self->ioloop->stop;
+    return $self;
+}
+
 sub _send_next_message {
     my ($self) = @_;
 
@@ -159,19 +166,19 @@ sub _read_wait_command {
         if ($cmd ne '-') {
             $self->{_read_cb} = sub {
                 $self->_return_command_data(shift);
-                $self->_read_wait_command($ioloop, $id, shift);
+                $self->_read_wait_command($self->ioloop, $id, shift);
             };
         }
         else {
             $self->{_read_cb} = sub {
                 $self->error(shift->[0]);
                 $self->_return_command_data(undef);
-                $self->_read_wait_command($ioloop, $id, shift);
+                $self->_read_wait_command($self->ioloop, $id, shift);
             };
         }
 
         $ioloop->on_read($id => sub { $self->_read_string_command(@_); });
-        $self->_read_string_command($ioloop, $id, $chunk);
+        $self->_read_string_command($self->ioloop, $id, $chunk);
 
     }
     elsif ($cmd eq '$') {
@@ -179,7 +186,7 @@ sub _read_wait_command {
         # Bulk command, not a big deal
         $self->{_read_cb} = sub {
             $self->_return_command_data(shift);
-            $self->_read_wait_command($ioloop, $id, shift);
+            $self->_read_wait_command($self->ioloop, $id, shift);
         };
 
         # Yes, it should have leading $
@@ -188,7 +195,7 @@ sub _read_wait_command {
     elsif ($cmd eq '*') {
         $self->{_read_cb} = sub {
             $self->_return_command_data(shift);
-            $self->_read_wait_command($ioloop, $id, shift);
+            $self->_read_wait_command($self->ioloop, $id, shift);
         };
         $self->_read_multi_bulk_command($ioloop, $id, $chunk);
     }
@@ -325,23 +332,23 @@ L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
 
     use MojoX::Redis;
 
-    # Create redis client 
-    my $redis = MojoX::Redis->new( server => '127.0.0.1:6379' );
+    my $redis = MojoX::Redis->new(server => '127.0.0.1:6379');
 
     # Execute some commands
-    $redis->execute(ping, sub {
-        my ($redis, $res) = @_;
+    $redis->execute(ping,
+        sub {
+            my ($redis, $res) = @_;
 
-        if ( $res ) {
-            print "Got result: ", $res->[0], "\n";
-        } else {
-            print "Error: ", $redis->error, "\n";
-        }
-        $redis->ioloop->stop;
-    });
+            if ($res) {
+                print "Got result: ", $res->[0], "\n";
+            }
+            else {
+                print "Error: ", $redis->error, "\n";
+            }
+      })
 
-    # ioloop should be running
-    $redis->ioloop->start;
+      # Cleanup connection
+      ->execute(quit, sub { shift->stop })->start;
 
 =head1 DESCRIPTION
 
