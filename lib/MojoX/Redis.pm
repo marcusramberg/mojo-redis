@@ -9,6 +9,7 @@ use base 'Mojo::Base';
 use Mojo::IOLoop;
 use List::Util ();
 use Mojo::Util ();
+use Scalar::Util ();
 
 __PACKAGE__->attr(server   => '127.0.0.1:6379');
 __PACKAGE__->attr(ioloop   => sub { Mojo::IOLoop->singleton });
@@ -38,6 +39,8 @@ sub connect {
     $self->server =~ m{^([^:]+)(:(\d+))?};
     my $address = $1;
     my $port = $3 || 6379;
+
+    Scalar::Util::weaken $self;
 
     # connect
     $self->{_connecting} = 1;
@@ -164,6 +167,7 @@ sub _inform_queue {
 sub _read_wait_command {
     my ($self, $ioloop, $id, $chunk) = @_;
 
+    Scalar::Util::weaken $self;
     my $cmd = substr $chunk, 0, 1, '';
     if (!defined $chunk || $chunk eq '') {
 
