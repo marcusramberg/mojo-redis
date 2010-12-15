@@ -3,7 +3,7 @@ package MojoX::Redis;
 use strict;
 use warnings;
 
-our $VERSION = 0.5;
+our $VERSION = 0.6;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -32,7 +32,7 @@ sub connect {
     my $self = shift;
 
     # drop old connection
-    if ($self->{_connection}) {
+    if ($self->connected) {
         $self->ioloop->drop($self->{_connection});
     }
 
@@ -55,6 +55,12 @@ sub connect {
     );
 
     return $self;
+}
+
+sub connected {
+    my $self = shift;
+    
+    return $self->{_connection};
 }
 
 sub execute {
@@ -146,6 +152,8 @@ sub _on_error {
 
     $self->error($error);
     $self->_inform_queue;
+
+    $ioloop->drop($id);
 }
 
 sub _on_hup {
@@ -153,6 +161,11 @@ sub _on_hup {
 
     $self->{error} ||= 'disconnected';
     $self->_inform_queue;
+
+    delete $self->{_message_queue};
+
+    delete $self->{_connecting};
+    delete $self->{_connection};
 }
 
 sub _inform_queue {

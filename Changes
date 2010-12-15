@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension MojoX::Redis
 
+0.6 2010-11-25 00:00:00
+        - Better connection handling
+
 0.5 2010-11-25 00:00:00
         - Fixed memory leaks
 
