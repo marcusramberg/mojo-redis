@@ -26,7 +26,7 @@ L<MojoX::Redis> is asynchronous L<Redis> client for Mojo.
         $redis->ioloop->stop;
     });
 
-    $redis->ioloop->start;
+    $redis->start;
 
 =cut
 
