@@ -7,8 +7,8 @@ our $VERSION = 0.6;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
-use List::Util ();
-use Mojo::Util ();
+use List::Util   ();
+use Mojo::Util   ();
 use Scalar::Util ();
 
 __PACKAGE__->attr(server   => '127.0.0.1:6379');
@@ -16,6 +16,14 @@ __PACKAGE__->attr(ioloop   => sub { Mojo::IOLoop->singleton });
 __PACKAGE__->attr(error    => undef);
 __PACKAGE__->attr(timeout  => 300);
 __PACKAGE__->attr(encoding => 'UTF-8');
+__PACKAGE__->attr(
+    on_error => sub {
+        sub {
+            my $redis = shift;
+            warn "Redis error: ", $redis->error, "\n";
+          }
+    }
+);
 
 sub DESTROY {
     my $self = shift;
@@ -25,7 +33,7 @@ sub DESTROY {
 
     # Cleanup connection
     $loop->drop($self->{_connection})
-        if $self->{_connection};
+      if $self->{_connection};
 }
 
 sub connect {
@@ -59,7 +67,7 @@ sub connect {
 
 sub connected {
     my $self = shift;
-    
+
     return $self->{_connection};
 }
 
@@ -153,6 +161,8 @@ sub _on_error {
     $self->error($error);
     $self->_inform_queue;
 
+    $self->on_error->($self);
+
     $ioloop->drop($id);
 }
 
@@ -200,6 +210,7 @@ sub _read_wait_command {
         else {
             $self->{_read_cb} = sub {
                 $self->error(shift->[0]);
+                $self->on_error->($self);
                 $self->_return_command_data(undef);
                 $self->_read_wait_command($self->ioloop, $id, shift);
             };
@@ -451,6 +462,15 @@ $redis->error.
 Returns error occured during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
+
+=head2 C<on_error>
+
+    $redis->on_error(sub{
+        my $redis = shift;
+        warn 'Redis error ', $redis->error, "\n";
+    });
+
+Executes if error occured. Called before commands callbacks.
 
 =head2 C<start>
 

@@ -10,12 +10,15 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 12;
+plan tests => 13;
 
 use_ok 'MojoX::Redis';
 
 my $redis =
   new_ok 'MojoX::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
+
+my $errors = 0;
+$redis->on_error(sub { $errors++ });
 
 $redis->execute(
     ping => sub {
@@ -24,7 +27,9 @@ $redis->execute(
   )->execute(
     qwe => sub {
         is_deeply $_[1], undef, 'Uknown command result';
-        is $redis->error, q|ERR unknown command 'QWE'|;
+        is $redis->error, q|ERR unknown command 'QWE'|,
+          'Unknown command message';
+        is $errors, 1, 'on_error works';
     }
   )->execute(
     set => [test => 'test_ok'],
@@ -43,17 +48,18 @@ $redis->execute(
     sub { is_deeply $_[1], ['привет'], "Unicode test" }
   )->execute(del => 'test')->execute(
     get => 'test',
-    sub { is_deeply $_[1], [], "bulk nil return check" }
+    sub { is_deeply $_[1], [], "Bulk nil return check" }
   )->execute(
     lrange => ['test', 0, -1],
     sub {
-        is_deeply $_[1], [], "multi-bulk nil return check";
+        is_deeply $_[1], [], "Multi-bulk nil return check";
     }
   )->execute(
     ping => sub {
         is_deeply $_[1], ['PONG'], "Last check";
     }
-  )->execute('quit',
-      sub { shift->stop; }
+  )->execute(
+    'quit',
+    sub { shift->stop; }
   )->start;
 
