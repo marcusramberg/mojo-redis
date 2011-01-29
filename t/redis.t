@@ -3,63 +3,105 @@
 use strict;
 use warnings;
 
-use Test::More;
+use Test::More tests => 7;
+
 use Mojo::IOLoop;
-use utf8;
-
-plan skip_all => 'Setup $REDIS_SERVER'
-  unless $ENV{REDIS_SERVER};
-
-plan tests => 13;
 
 use_ok 'MojoX::Redis';
 
-my $redis =
-  new_ok 'MojoX::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
+my $loop = Mojo::IOLoop->singleton;
+my $port = $loop->generate_port;
 
-my $errors = 0;
-$redis->on_error(sub { $errors++ });
+my $redis =
+  new_ok 'MojoX::Redis' => [server => "127.0.0.1:$port", timeout => 5];
+
+my ($sbuffer1, $sbuffer2);
+my ($r, $r1, $r2);
+my $server;
+$loop->listen(
+    port    => $port,
+    on_read => sub {
+        my ($self, $id, $chunk) = @_;
+        $sbuffer1 = $chunk;
+        $self->write($id => "\$2\r\nok\r\n");
+        $self->on_read($id => sub { });
+    },
+    on_accept => sub {
+        my ($self, $id) = @_;
+        $server = $id;
+    }
+);
 
 $redis->execute(
-    ping => sub {
-        is_deeply $_[1], ['PONG'], "Line result test";
-    }
-  )->execute(
-    qwe => sub {
-        is_deeply $_[1], undef, 'Uknown command result';
-        is $redis->error, q|ERR unknown command 'QWE'|,
-          'Unknown command message';
-        is $errors, 1, 'on_error works';
-    }
-  )->execute(
-    set => [test => 'test_ok'],
-    sub { is_deeply $_[1], ['OK'], "Another line result"; }
-  )->execute(
     get => 'test',
-    sub { is_deeply $_[1], ['test_ok'], "Bulk result"; }
-  )->execute(del => 'test')->execute(rpush => [test => 'test1'])
-  ->execute(rpush => [test => 'test2'])->execute(
-    lrange => ['test', 0, -1],
     sub {
-        is_deeply $_[1], ["test1", "test2"], "Multy-bulk result";
+        my ($redis, $result) = @_;
+        $r = $result;
+        &test2;
     }
-  )->execute(set => [test => 'привет'])->execute(
-    get => 'test',
-    sub { is_deeply $_[1], ['привет'], "Unicode test" }
-  )->execute(del => 'test')->execute(
-    get => 'test',
-    sub { is_deeply $_[1], [], "Bulk nil return check" }
-  )->execute(
-    lrange => ['test', 0, -1],
-    sub {
-        is_deeply $_[1], [], "Multi-bulk nil return check";
-    }
-  )->execute(
-    ping => sub {
-        is_deeply $_[1], ['PONG'], "Last check";
-    }
-  )->execute(
-    'quit',
-    sub { shift->stop; }
-  )->start;
+)->start;
 
+# Multiple pipelined commands
+sub test2 {
+    $loop->on_read(
+        $server => sub {
+            my ($self, $id, $chunk) = @_;
+            $sbuffer2 .= $chunk;
+
+            # Wait both commands to come
+            if ($sbuffer2 =~ m{test2}) {
+                $self->on_read($id => sub { });
+
+                # Half of first command
+                $self->write($id => "\$3\r\nok");
+                $self->timer(
+                    0.1 => sub {
+                        my ($self) = @_;
+
+                        # Another half with first half of second
+                        $self->write($id => "1\r\n\$3");
+                        $self->timer(
+                            0.1 => sub {
+                                my ($self) = @_;
+
+                                # Done
+                                $self->write($id => "\r\nok2\r\n");
+                                $self->timer(
+                                    0.2 => sub {
+                                        $self->stop;
+                                    }
+                                );
+                            }
+                        );
+                    }
+                );
+            }
+        }
+    );
+    $redis->execute(
+        get => 'test1',
+        sub {
+            my ($redis, $result) = @_;
+            $r1 = $result;
+        }
+      )->execute(
+        get => 'test2',
+        sub {
+            my ($redis, $result) = @_;
+            $r2 = $result;
+            &tests_check;
+        }
+      );
+}
+
+sub tests_check {
+    is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n\r\n", 'input command';
+    is_deeply $r, ['ok'], 'result';
+
+    is $sbuffer2,
+      "*2\r\n\$3\r\nGET\r\n\$5\r\ntest1\r\n\r\n*2\r\n\$3\r\nGET\r\n\$5\r\ntest2\r\n\r\n",
+      'input commands';
+    is_deeply $r1, ['ok1'], 'first command';
+    is_deeply $r2, ['ok2'], 'second command';
+    $redis->stop;
+}
