@@ -482,6 +482,18 @@ Starts IOLoop. Shortcut for $redis->ioloop->start;
 
 L<Mojolicious>, L<Mojo::IOLoop>
 
+=head1 SUPPORT
+
+=head2 IRC
+
+    #ru.pm on irc.perl.org
+    
+=head1 DEVELOPMENT
+
+=head2 Repository
+
+    http://github.com/und3f/mojoliciousx-lexicon
+
 =head1 AUTHOR
 
 Sergey Zasenko, C<undef@cpan.org>.
