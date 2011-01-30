@@ -10,7 +10,7 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 13;
+plan tests => 14;
 
 use_ok 'MojoX::Redis';
 
@@ -58,8 +58,9 @@ $redis->execute(
     ping => sub {
         is_deeply $_[1], ['PONG'], "Last check";
     }
-  )->execute(
-    'quit',
-    sub { shift->stop; }
-  )->start;
+  )->set(test => 'ok')->get(
+    test => sub {
+        is_deeply $_[1], ['ok'], "Fast command check";
+    }
+  )->quit(sub { shift->stop; })->start;
 

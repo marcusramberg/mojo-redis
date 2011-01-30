@@ -16,17 +16,16 @@ L<MojoX::Redis> is asynchronous L<Redis> client for Mojo.
 
     my $redis = MojoX::Redis->new;
 
-    $redis->execute("set" => [test => "test_ok"])
-    ->execute("get" => "test" => sub {
+    $redis->set(test => "test_ok")
+    ->get(test => sub {
         my ($redis, $result) = @_;
 
         die $redis->error unless defined $result;
 
         print qq|"result" = "|, $result->[0], qq|"\n|;
         $redis->ioloop->stop;
-    });
-
-    $redis->start;
+    })
+    ->start;
 
 =cut
 

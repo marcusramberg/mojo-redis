@@ -10,6 +10,7 @@ use Mojo::IOLoop;
 use List::Util   ();
 use Mojo::Util   ();
 use Scalar::Util ();
+use Carp 'croak';
 
 __PACKAGE__->attr(server   => '127.0.0.1:6379');
 __PACKAGE__->attr(ioloop   => sub { Mojo::IOLoop->singleton });
@@ -24,6 +25,41 @@ __PACKAGE__->attr(
           }
     }
 );
+
+our @COMMANDS = qw/
+  append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
+  config_resetstat dbsize debug_object debug_segfault decr decrby del discard
+  echo exec exists expire expireat flushall flushdb get getbit getrange getset
+  hdel hexists hget hgetall hincrby hkeys hlen hmget hmset hset hsetnx hvals
+  incr incrby info keys lastsave lindex linsert llen lpop lpush lpushx lrange
+  lrem lset ltrim mget monitor move mset msetnx multi persist ping psubscribe
+  publish punsubscribe quit randomkey rename renamenx rpop rpoplpush rpush
+  rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
+  setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
+  spop srandmember srem strlen subscribe sunion sunionstore sync ttl type
+  unsubscribe unwatch watch zadd zcard zcount zincrby zinterstore zrange
+  zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
+  zrevrangebyscore zrevrank zscore zunionstore
+/;
+
+sub AUTOLOAD {
+    my ($package, $cmd) = our $AUTOLOAD =~ /^([\w\:]+)\:\:(\w+)$/;
+
+    Carp::croak(qq|Can't locate object method "$cmd" via "$package"|)
+        unless List::Util::first {$_ eq $cmd} @COMMANDS;
+
+    my $self = shift;
+
+    my $args = [@_];
+    my $cb   = $args->[-1];
+    if (ref $cb ne 'CODE') {
+        $cb = undef;
+    } else {
+        pop @$args;
+    }
+
+    $self->execute($cmd, $args, $cb);
+}
 
 sub DESTROY {
     my $self = shift;
@@ -374,7 +410,7 @@ L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
     my $redis = MojoX::Redis->new(server => '127.0.0.1:6379');
 
     # Execute some commands
-    $redis->execute(ping,
+    $redis->ping(
         sub {
             my ($redis, $res) = @_;
 
@@ -386,8 +422,18 @@ L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
             }
       })
 
+      # Work with keys
+      ->set(key => 'value')
+
+      ->get(key => sub {
+          my ($redis, $res) = @_;
+
+          print "Value of ' key ' is $res->[0]\n";
+      })
+
+
       # Cleanup connection
-      ->execute(quit, sub { shift->stop })->start;
+      ->quit(sub { shift->stop })->start;
 
 =head1 DESCRIPTION
 
@@ -429,8 +475,14 @@ Encoding used for stored data, defaults to C<UTF-8>.
 
 =head1 METHODS
 
-L<MojoX::Redis> inherits all methods from l<Mojo::Base> and implements
-the following ones.
+L<MojoX::Redis> supports Redis' methods.
+
+    $redis->set(key => 'value);
+    $redis->get(key => sub { ... });
+
+For more details take a look at C<execute> method.
+
+Also L<MojoX::Redis> implements the following ones.
 
 =head2 C<connect>
 

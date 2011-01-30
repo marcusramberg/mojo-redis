@@ -23,7 +23,7 @@ my $redis = MojoX::Redis->new(server => $ENV{REDIS_SERVER}, timeout => 5);
 $redis->on_error(sub { });
 
 no_leaks_ok {
-    $redis->execute("ping", \&cb_ioloop_stop)->start;
+    $redis->ping(\&cb_ioloop_stop)->start;
 }
 "ping";
 
@@ -33,12 +33,12 @@ no_leaks_ok {
 "error";
 
 no_leaks_ok {
-    $redis->execute(set => [test => 'test_ok'], \&cb_ioloop_stop)->start;
+    $redis->set(test => 'test_ok', \&cb_ioloop_stop)->start;
 }
 "set";
 
 no_leaks_ok {
-    $redis->execute(get => 'test', \&cb_ioloop_stop)->start;
+    $redis->get(test => \&cb_ioloop_stop)->start;
 }
 "get";
 
