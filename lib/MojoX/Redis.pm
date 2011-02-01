@@ -396,7 +396,7 @@ L<Protocol::Redis>, L<Mojolicious>, L<Mojo::IOLoop>
 
 =head2 Repository
 
-    http://github.com/und3f/mojoliciousx-lexicon
+    https://github.com/und3f/mojox-redis
 
 =head1 AUTHOR
 
