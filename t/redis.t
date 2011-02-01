@@ -107,7 +107,7 @@ sub check3 {
         }
     );
 
-    $redis->set(key => 'value', sub {});
+    $redis->set(key => 'value', sub { });
 }
 
 sub tests_check {

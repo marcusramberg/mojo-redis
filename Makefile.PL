@@ -13,6 +13,9 @@ WriteMakefile(
     NAME         => 'MojoX::Redis',
     VERSION_FROM => 'lib/MojoX/Redis.pm',
     AUTHOR       => 'Sergey Zasenko <undef@cpan.org>',
-    PREREQ_PM => { 'Mojolicious' => '0.9003' },
+    PREREQ_PM    => {
+        'Mojolicious'     => '0.9003',
+        'Protocol::Redis' => 0
+    },
     test => {TESTS => 't/*.t t/*/*.t t/*/*/*.t'}
 );
