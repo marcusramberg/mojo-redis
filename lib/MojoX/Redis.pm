@@ -88,7 +88,7 @@ sub connect {
 
     Scalar::Util::weaken $self;
     $self->{_parser} = Protocol::Redis->new(
-        on_command => sub {
+        on_message => sub {
             my ($parser, $command) = @_;
             $self->_return_command_data($command);
         }
