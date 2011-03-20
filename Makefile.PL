@@ -15,7 +15,7 @@ WriteMakefile(
     AUTHOR       => 'Sergey Zasenko <undef@cpan.org>',
     PREREQ_PM    => {
         'Mojolicious'     => '0.9003',
-        'Protocol::Redis' => '0.9'
+        'Protocol::Redis' => '0.9001'
     },
     test => {TESTS => 't/*.t t/*/*.t t/*/*/*.t'}
 );

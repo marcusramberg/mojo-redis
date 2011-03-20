@@ -3,7 +3,7 @@ package MojoX::Redis;
 use strict;
 use warnings;
 
-our $VERSION = 0.7;
+our $VERSION = 0.8;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -182,18 +182,32 @@ sub _on_connect {
     $self->_send_next_message;
 }
 
+sub _reencode_message {
+    my ($self, $message) = @_;
+
+    my ($type, $data) = @{$message}{'type', 'data'};
+    if ($type eq '-') {
+        $self->error($data);
+        $self->on_error->($self);
+        return;
+    }
+    elsif ($type ne '*') {
+        return [$data];
+    }
+    else {
+        my $reencoded_data = [];
+        foreach my $item (@$data) {
+            my $message = $self->_reencode_message($item);
+            push @$reencoded_data, $message;
+        }
+        return $reencoded_data;
+    }
+}
+
 sub _return_command_data {
     my ($self, $message) = @_;
 
-    my $data = $message->{data};
-    if ($message->{type} eq '-') {
-        $self->error($data);
-        $self->on_error->($self);
-        $data = undef;
-    }
-    elsif ($message->{type} ne '*') {
-        $data = [$data];
-    }
+    my $data = $self->_reencode_message($message);
 
     my $cb = shift @{$self->{_cb_queue}};
     if ($cb) {
@@ -404,7 +418,7 @@ Sergey Zasenko, C<undef@cpan.org>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010, Sergey Zasenko
+Copyright (C) 2010-2011, Sergey Zasenko
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.
