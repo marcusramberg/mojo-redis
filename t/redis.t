@@ -21,6 +21,9 @@ my $redis =
 my ($sbuffer1, $sbuffer2, $sbuffer3);
 my ($r,        $r1,       $r2);
 my $server;
+
+$loop->timer(2 => \&tests_check);
+
 $loop->listen(
     port    => $port,
     on_read => sub {
@@ -48,6 +51,7 @@ $redis->execute(
 sub test2 {
     $loop->on_read(
         $server => sub {
+            warn "here\n";
             my ($self, $id, $chunk) = @_;
             $sbuffer2 .= $chunk;
 
@@ -113,15 +117,15 @@ sub check3 {
 sub tests_check {
     $redis->stop;
 
-    is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n\r\n", 'input command';
+    is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n", 'input command';
     is_deeply $r, ['ok'], 'result';
 
     is $sbuffer2,
-      "*2\r\n\$3\r\nGET\r\n\$5\r\ntest1\r\n\r\n*2\r\n\$3\r\nGET\r\n\$5\r\ntest2\r\n\r\n",
+      "*2\r\n\$3\r\nGET\r\n\$5\r\ntest1\r\n*2\r\n\$3\r\nGET\r\n\$5\r\ntest2\r\n",
       'input commands';
     is_deeply $r1, ['ok1'], 'first command';
     is_deeply $r2, ['ok2'], 'second command';
 
-    is $sbuffer3, "*3\r\n\$3\r\nSET\r\n\$3\r\nkey\r\n\$5\r\nvalue\r\n\r\n",
+    is $sbuffer3, "*3\r\n\$3\r\nSET\r\n\$3\r\nkey\r\n\$5\r\nvalue\r\n",
       'fast command';
 }

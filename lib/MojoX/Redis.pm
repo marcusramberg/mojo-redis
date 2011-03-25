@@ -7,10 +7,9 @@ our $VERSION = 0.8;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
-use List::Util      ();
-use Mojo::Util      ();
-use Scalar::Util    ();
-use Protocol::Redis ();
+use List::Util   ();
+use Mojo::Util   ();
+use Scalar::Util ();
 require Carp;
 
 __PACKAGE__->attr(server   => '127.0.0.1:6379');
@@ -24,6 +23,12 @@ __PACKAGE__->attr(
             my $redis = shift;
             warn "Redis error: ", $redis->error, "\n";
           }
+    }
+);
+
+__PACKAGE__->attr(
+    protocol_redis => sub {
+        require Protocol::Redis; "Protocol::Redis";
     }
 );
 
@@ -87,13 +92,8 @@ sub connect {
     my $port = $3 || 6379;
 
     Scalar::Util::weaken $self;
-    $self->{_parser} = Protocol::Redis->new(
-        on_message => sub {
-            my ($parser, $command) = @_;
-            $self->_return_command_data($command);
-        }
-    );
 
+    $self->{_protocol} = $self->_create_protocol;
 
     # connect
     $self->{_connecting} = 1;
@@ -129,18 +129,11 @@ sub execute {
 
     unshift @$args, uc $command;
 
-    my $message = '*' . scalar(@$args) . "\r\n";
-    foreach my $token (@$args) {
-        Mojo::Util::encode($self->encoding, $token) if $self->encoding;
-        $message .= '$' . length($token) . "\r\n" . "$token\r\n";
-    }
-    $message .= "\r\n";
-
     my $mqueue = $self->{_message_queue} ||= [];
     my $cqueue = $self->{_cb_queue}      ||= [];
 
 
-    push @$mqueue, $message;
+    push @$mqueue, $args;
     push @$cqueue, $cb;
 
     $self->connect unless $self->{_connection};
@@ -163,11 +156,36 @@ sub stop {
     return $self;
 }
 
+sub _create_protocol {
+    my $self = shift;
+
+    my $protocol = $self->protocol_redis->new(
+        on_message => sub {
+            my ($parser, $command) = @_;
+            $self->_return_command_data($command);
+        }
+    );
+
+    $protocol->use_api(1)
+      || Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/);
+
+    $protocol;
+}
+
 sub _send_next_message {
     my ($self) = @_;
 
     if ((my $c = $self->{_connection}) && !$self->{_connecting}) {
-        while (my $message = shift @{$self->{_message_queue}}) {
+        while (my $args = shift @{$self->{_message_queue}}) {
+            my $cmd_arg = [];
+            my $cmd = {type => '*', data => $cmd_arg};
+            foreach my $token (@$args) {
+                Mojo::Util::encode($self->encoding, $token)
+                  if $self->encoding;
+                push @$cmd_arg, {type => '$', data => $token};
+            }
+            my $message = $self->{_protocol}->encode($cmd);
+
             $self->ioloop->write($c, $message);
         }
     }
@@ -259,7 +277,7 @@ sub _inform_queue {
 sub _on_read {
     my ($self, $ioloop, $id, $chunk) = @_;
 
-    $self->{_parser}->parse($chunk);
+    $self->{_protocol}->parse($chunk);
 }
 
 1;
@@ -338,6 +356,15 @@ dropped, defaults to C<300>.
     $redis       = $redis->encoding('UTF-8');
 
 Encoding used for stored data, defaults to C<UTF-8>.
+
+=head2 C<protocol_redis>
+
+    use Protocol::Redis;
+    $redis->protocol_redis("Protocol::Redis");
+
+L<Protocol::Redis> implementation' constructor for parsing. By default
+L<Protocol::Redis> will be used. Parser library must support
+L<APIv1|Protocol::Redis/APIv1>.
 
 =head1 METHODS
 
