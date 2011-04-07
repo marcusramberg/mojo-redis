@@ -51,7 +51,6 @@ $redis->execute(
 sub test2 {
     $loop->on_read(
         $server => sub {
-            warn "here\n";
             my ($self, $id, $chunk) = @_;
             $sbuffer2 .= $chunk;
 
