@@ -285,7 +285,7 @@ __END__
 
 =head1 NAME
 
-L<MojoX::Redis> - asynchronous Redis client for L<Mojolicious>.
+MojoX::Redis - asynchronous Redis client for L<Mojolicious>.
 
 =head1 SYNOPSIS
 
