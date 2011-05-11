@@ -19,7 +19,7 @@ WriteMakefile(
     BUILD_REQUIRES => {'Test::More' => '0.88'},
     PREREQ_PM    => {
         'Mojolicious'     => '0.9003',
-        'Protocol::Redis' => '0.9001'
+        'Protocol::Redis' => '1.0'
     },
     META_MERGE => {
         resources => {repository => 'http://github.com/und3f/mojox-redis',}

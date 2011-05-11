@@ -28,7 +28,8 @@ __PACKAGE__->attr(
 
 __PACKAGE__->attr(
     protocol_redis => sub {
-        require Protocol::Redis; "Protocol::Redis";
+        require Protocol::Redis;
+        "Protocol::Redis";
     }
 );
 
@@ -160,14 +161,15 @@ sub _create_protocol {
     my $self = shift;
 
     my $protocol = $self->protocol_redis->new(
+        api        => 1,
         on_message => sub {
             my ($parser, $command) = @_;
             $self->_return_command_data($command);
         }
     );
 
-    $protocol->use_api(1)
-      || Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/);
+    Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/)
+      unless $protocol;
 
     $protocol;
 }
