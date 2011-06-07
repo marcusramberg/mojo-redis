@@ -18,7 +18,7 @@ WriteMakefile(
 
     BUILD_REQUIRES => {'Test::More' => '0.88'},
     PREREQ_PM    => {
-        'Mojolicious'     => '0.9003',
+        'Mojolicious'     => '1.22',
         'Protocol::Redis' => '1.0'
     },
     META_MERGE => {

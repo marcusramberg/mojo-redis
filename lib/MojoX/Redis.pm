@@ -104,7 +104,7 @@ sub connect {
             on_connect => sub { $self->_on_connect(@_) },
             on_read    => sub { $self->_on_read(@_) },
             on_error   => sub { $self->_on_error(@_) },
-            on_hup     => sub { $self->_on_hup(@_) },
+            on_close   => sub { $self->_on_hup(@_) },
         }
     );
 
