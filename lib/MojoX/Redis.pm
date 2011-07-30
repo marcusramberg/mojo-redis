@@ -304,23 +304,26 @@ MojoX::Redis - asynchronous Redis client for L<Mojolicious>.
             else {
                 print "Error: ", $redis->error, "\n";
             }
-      });
+        }
+    );
 
-      # Work with keys
-      $redis->set(key => 'value');
+    # Work with keys
+    $redis->set(key => 'value');
 
-      $redis->get(key => sub {
-          my ($redis, $res) = @_;
+    $redis->get(
+        key => sub {
+            my ($redis, $res) = @_;
 
-          print "Value of 'key' is $res->[0]\n";
-      });
+            print "Value of 'key' is $res->[0]\n";
+        }
+    );
 
 
-      # Cleanup connection
-      $redis->quit(sub { shift->stop });
-      
-      # Start IOLoop (in case it is not started yet)
-      $redis->start;
+    # Cleanup connection
+    $redis->quit(sub { shift->stop });
+
+    # Start IOLoop (in case it is not started yet)
+    $redis->start;
 
 =head1 DESCRIPTION
 
