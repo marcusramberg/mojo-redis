@@ -304,20 +304,23 @@ MojoX::Redis - asynchronous Redis client for L<Mojolicious>.
             else {
                 print "Error: ", $redis->error, "\n";
             }
-      })
+      });
 
       # Work with keys
-      ->set(key => 'value')
+      $redis->set(key => 'value');
 
-      ->get(key => sub {
+      $redis->get(key => sub {
           my ($redis, $res) = @_;
 
-          print "Value of ' key ' is $res->[0]\n";
-      })
+          print "Value of 'key' is $res->[0]\n";
+      });
 
 
       # Cleanup connection
-      ->quit(sub { shift->stop })->start;
+      $redis->quit(sub { shift->stop });
+      
+      # Start IOLoop (in case it is not started yet)
+      $redis->start;
 
 =head1 DESCRIPTION
 
@@ -402,7 +405,7 @@ $redis->error.
     $redis->execute("ping" => sub {
         my ($redis, $result) = @_;
         die $redis->error unless defined $result;
-    }
+    });
 
 Returns error occured during command execution.
 Note that this method returns error code just from current command and
