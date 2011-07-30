@@ -3,7 +3,7 @@ package MojoX::Redis;
 use strict;
 use warnings;
 
-our $VERSION = 0.8;
+our $VERSION = 0.81;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
