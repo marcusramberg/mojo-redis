@@ -10,7 +10,7 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 14;
+plan tests => 15;
 
 use_ok 'MojoX::Redis';
 
@@ -55,7 +55,16 @@ $redis->execute(del => 'test')->execute(rpush => [test => 'test1'])
 
 $redis->execute(set => [test => 'привет'])->execute(
     get => 'test',
-    sub { is_deeply $_[1], ['привет'], "Unicode test" }
+    sub { ok utf8::is_utf8($_[1]->[0]), "Unicode test" }
+);
+
+$redis->execute(del => 'test');
+$redis->execute(hmset => ['test', key => 'привет']);
+$redis->execute(
+    hmget => [test => 'key'],
+    sub {
+        ok utf8::is_utf8($_[1]->[0]->[0]), "Unicode test on multibulk reply";
+    }
 );
 
 $redis->execute(del => 'test')->execute(

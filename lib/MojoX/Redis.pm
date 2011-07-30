@@ -206,6 +206,12 @@ sub _reencode_message {
     my ($self, $message) = @_;
 
     my ($type, $data) = @{$message}{'type', 'data'};
+
+    # Decode data
+    if ($type ne '*' && $self->encoding && $data) {
+        Mojo::Util::decode($self->encoding, $data);
+    }
+
     if ($type eq '-') {
         $self->error($data);
         $self->on_error->($self);
@@ -230,15 +236,7 @@ sub _return_command_data {
     my $data = $self->_reencode_message($message);
 
     my $cb = shift @{$self->{_cb_queue}};
-    if ($cb) {
-
-        # Decode data
-        if ($self->encoding && $data) {
-            Mojo::Util::decode($self->encoding, $_) for @$data;
-        }
-
-        $cb->($self, $data);
-    }
+    $cb->($self, $data) if $cb;
 
     # Reset error after callback dispatching
     $self->error(undef);
