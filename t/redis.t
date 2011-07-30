@@ -25,7 +25,7 @@ my $server;
 
 $r4 = 'wrong result';
 
-$loop->timer(2 => \&tests_check);
+$loop->timer(5 => sub { $redis->stop});
 
 $loop->listen(
     port    => $port,
