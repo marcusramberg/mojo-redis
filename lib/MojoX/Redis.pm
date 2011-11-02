@@ -3,7 +3,7 @@ package MojoX::Redis;
 use strict;
 use warnings;
 
-our $VERSION = 0.81;
+our $VERSION = 0.82;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -324,6 +324,36 @@ MojoX::Redis - asynchronous Redis client for L<Mojolicious>.
 
     # Start IOLoop (in case it is not started yet)
     $redis->start;
+
+Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
+application.
+
+    use Mojolicious::Lite;
+    use MojoX::Redis;
+
+    get '/' => sub {
+        my $self = shift;
+
+        my $redis = MojoX::Redis->new(ioloop => Mojo::IOLoop->new);
+
+        my $value;
+
+        $redis->set(foo => 'bar')->get(
+            foo => sub {
+                my ($redis, $result) = @_;
+
+                $redis->quit->stop;
+
+                return app->log->error($redis->error) unless $result;
+
+                $value = $result->[0];
+            }
+        )->start;
+
+        $self->render(text => qq(Foo value is "$value"));
+    };
+
+    app->start;
 
 =head1 DESCRIPTION
 
