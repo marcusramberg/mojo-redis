@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension MojoX::Redis
 
+0.82 2011-11-02 00:00:00
+         - Documentation improved
+
 0.81 2011-07-30 00:00:00
          - fixed encoding issue on multi-bulk reply
 
