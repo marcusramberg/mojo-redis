@@ -3,7 +3,7 @@ package MojoX::Redis;
 use strict;
 use warnings;
 
-our $VERSION = 0.82;
+our $VERSION = 0.83;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -395,12 +395,14 @@ Encoding used for stored data, defaults to C<UTF-8>.
 
 =head2 C<protocol_redis>
 
-    use Protocol::Redis;
-    $redis->protocol_redis("Protocol::Redis");
+    use Protocol::Redis::XS;
+    $redis->protocol_redis("Protocol::Redis::XS");
 
 L<Protocol::Redis> implementation' constructor for parsing. By default
 L<Protocol::Redis> will be used. Parser library must support
 L<APIv1|Protocol::Redis/APIv1>.
+
+Using L<Protocol::Redis::XS> instead of default choice can speedup parsing.
 
 =head1 METHODS
 
