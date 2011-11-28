@@ -160,9 +160,9 @@ sub stop {
 sub _create_protocol {
     my $self = shift;
 
-    my $protocol = $self->protocol_redis->new(
-        api        => 1,
-        on_message => sub {
+    my $protocol = $self->protocol_redis->new(api => 1);
+    $protocol->on_message(
+        sub {
             my ($parser, $command) = @_;
             $self->_return_command_data($command);
         }
