@@ -8,8 +8,8 @@ use base 'Mojo::Base';
 
 use Mojo::IOLoop;
 use List::Util   ();
-use Mojo::Util   ();
 use Scalar::Util ();
+use Encode       ();
 require Carp;
 
 __PACKAGE__->attr(server   => '127.0.0.1:6379');
@@ -182,7 +182,7 @@ sub _send_next_message {
             my $cmd_arg = [];
             my $cmd = {type => '*', data => $cmd_arg};
             foreach my $token (@$args) {
-                Mojo::Util::encode($self->encoding, $token)
+                $token = Encode::encode($self->encoding, $token)
                   if $self->encoding;
                 push @$cmd_arg, {type => '$', data => $token};
             }
@@ -209,7 +209,7 @@ sub _reencode_message {
 
     # Decode data
     if ($type ne '*' && $self->encoding && $data) {
-        Mojo::Util::decode($self->encoding, $data);
+        $data = Encode::decode($self->encoding, $data);
     }
 
     if ($type eq '-') {

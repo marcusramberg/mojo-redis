@@ -5,8 +5,6 @@ use 5.008001;
 use strict;
 use warnings;
 
-# Son, when you participate in sporting events,
-# it's not whether you win or lose, it's how drunk you get.
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
@@ -19,7 +17,8 @@ WriteMakefile(
     BUILD_REQUIRES => {'Test::More' => '0.88'},
     PREREQ_PM      => {
         'Mojolicious'     => '1.22',
-        'Protocol::Redis' => '1.0'
+        'Protocol::Redis' => '1.0',
+        'Encode'          => 0,
     },
     META_MERGE => {
         resources => {
