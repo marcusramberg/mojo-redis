@@ -27,19 +27,15 @@ $r4 = 'wrong result';
 
 $loop->timer(5 => sub { $redis->stop});
 
-$loop->listen(
-    port    => $port,
-    on_read => sub {
-        my ($self, $id, $chunk) = @_;
+$loop->server( { port => $port}, sub {
+  my ($loop,$stream)=@_;
+    $stream->on(read => sub {
+        my ($stream, $chunk) = @_;
         $sbuffer1 = $chunk;
-        $self->write($id => "\$2\r\nok\r\n");
-        $self->on_read($id => sub { });
-    },
-    on_accept => sub {
-        my ($self, $id) = @_;
-        $server = $id;
-    }
-);
+        $stream->write("\$2\r\nok\r\n");
+        $stream->on(read => sub { });
+    });
+});
 
 $redis->execute(
     get => 'test',

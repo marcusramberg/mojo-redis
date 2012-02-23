@@ -98,13 +98,38 @@ sub connect {
 
     # connect
     $self->{_connecting} = 1;
-    $self->{_connection} = $self->ioloop->connect(
+    $self->{_connection} = $self->ioloop->client(
         {   address    => $address,
-            port       => $port,
-            on_connect => sub { $self->_on_connect(@_) },
-            on_read    => sub { $self->_on_read(@_) },
-            on_error   => sub { $self->_on_error(@_) },
-            on_close   => sub { $self->_on_hup(@_) },
+            port       => $port 
+        }, sub {
+          my ($stream,$chunk)=@_;
+
+          delete $self->{_connecting};
+          $stream->timeout($self->timeout);
+          $self->_send_next_message;
+
+            $stream->on(read    => sub { 
+              my $chunk=pop;
+              $self->{_protocol}->parse($chunk);
+            });
+            $stream->on(error   => sub { 
+              my ($str,$error)=@_;
+              $self->error($error);
+              $self->_inform_queue;
+
+              $self->on_error->($self);
+              $self->ioloop->drop($self->{_connection});
+            });
+            $stream->on(close   => sub { 
+              my $str=shift;
+              $self->{error} ||= 'disconnected';
+              $self->_inform_queue;
+
+              delete $self->{_message_queue};
+
+              delete $self->{_connecting};
+              delete $self->{_connection};
+            });
         }
     );
 
@@ -193,14 +218,6 @@ sub _send_next_message {
     }
 }
 
-sub _on_connect {
-    my ($self, $ioloop, $id) = @_;
-    delete $self->{_connecting};
-
-    $ioloop->connection_timeout($id => $self->timeout);
-
-    $self->_send_next_message;
-}
 
 sub _reencode_message {
     my ($self, $message) = @_;
@@ -242,28 +259,6 @@ sub _return_command_data {
     $self->error(undef);
 }
 
-sub _on_error {
-    my ($self, $ioloop, $id, $error) = @_;
-
-    $self->error($error);
-    $self->_inform_queue;
-
-    $self->on_error->($self);
-
-    $ioloop->drop($id);
-}
-
-sub _on_hup {
-    my ($self, $ioloop, $id) = @_;
-
-    $self->{error} ||= 'disconnected';
-    $self->_inform_queue;
-
-    delete $self->{_message_queue};
-
-    delete $self->{_connecting};
-    delete $self->{_connection};
-}
 
 sub _inform_queue {
     my ($self) = @_;
@@ -272,12 +267,6 @@ sub _inform_queue {
         $cb->($self) if $cb;
     }
     $self->{_queue} = [];
-}
-
-sub _on_read {
-    my ($self, $ioloop, $id, $chunk) = @_;
-
-    $self->{_protocol}->parse($chunk);
 }
 
 1;
