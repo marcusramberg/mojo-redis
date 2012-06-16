@@ -12,30 +12,34 @@ use Mojo::IOLoop;
 
 use_ok 'MojoX::Redis';
 
-my $loop = Mojo::IOLoop->singleton;
-my $port = $loop->generate_port;
+my $port = Mojo::IOLoop->generate_port;
 
-my $redis =
-  new_ok 'MojoX::Redis' => [server => "127.0.0.1:$port", timeout => 5];
 
 my ($sbuffer1, $sbuffer2, $sbuffer3);
 my ($r, $r1, $r2, $r4);
 my $redis_error;
-my $server;
+my $curr_stream;
 
 $r4 = 'wrong result';
 
-$loop->timer(5 => sub { $redis->stop});
 
-$loop->server( { port => $port}, sub {
-  my ($loop,$stream)=@_;
-    $stream->on(read => sub {
-        my ($stream, $chunk) = @_;
-        $sbuffer1 = $chunk;
-        $stream->write("\$2\r\nok\r\n");
-        $stream->on(read => sub { });
+my $server = Mojo::IOLoop->server(
+    {port => $port},
+    sub {
+        my ($loop, $stream) = @_;
+        $curr_stream = $stream;
+        $stream->once(
+            read => sub {
+                my ($stream, $chunk) = @_;
+                $sbuffer1 = $chunk;
+                $stream->write("\$2\r\nok\r\n");
+        });
     });
-});
+
+my $redis =
+  new_ok 'MojoX::Redis' => [server => "127.0.0.1:$port", timeout => 1];
+Mojo::IOLoop->timer(5 => sub { $redis->stop }); #security valve
+
 
 $redis->execute(
     get => 'test',
@@ -64,32 +68,36 @@ is $redis_error, 'disconnected', 'redis error message';
 
 # Multiple pipelined commands
 sub test2 {
-    $loop->on_read(
-        $server => sub {
-            my ($self, $id, $chunk) = @_;
+    $curr_stream->once(
+        read => sub {
+            my ($stream, $chunk) = @_;
             $sbuffer2 .= $chunk;
 
             # Wait both commands to come
             if ($sbuffer2 =~ m{test2}) {
-                $self->on_read($id => sub { });
+                $stream->on(read => sub { });
 
                 # Half of first command
-                $self->write($id => "\$3\r\nok");
-                $self->timer(
-                    0.1 => sub {
-                        my ($self) = @_;
-
-                        # Another half with first half of second
-                        $self->write($id => "1\r\n\$3");
-                        $self->timer(
+                $stream->write(
+                    "\$3\r\nok",
+                    sub {
+                        Mojo::IOLoop->timer(
                             0.1 => sub {
                                 my ($self) = @_;
 
-                                # Done
-                                $self->write($id => "\r\nok2\r\n");
-                                $self->timer(
-                                    0.2 => sub {
-                                        $self->stop;
+                                # Another half with first half of second
+                                $stream->write(
+                                    "1\r\n\$3",
+                                    sub {
+                                        Mojo::IOLoop->timer(
+                                            0.1 => sub {
+                                                my ($self) = @_;
+
+                                                # Done
+                                                $stream->write(
+                                                    "\r\nok2\r\n");
+                                            }
+                                        );
                                     }
                                 );
                             }
@@ -116,9 +124,9 @@ sub test2 {
 }
 
 sub check3 {
-    $loop->on_read(
-        $server => sub {
-            my ($self, $id, $chunk) = @_;
+    $curr_stream->once(
+        read => sub {
+            my ($stream, $chunk) = @_;
             $sbuffer3 = $chunk;
 
             &check4;
@@ -129,13 +137,11 @@ sub check3 {
 }
 
 sub check4 {
-    $loop->on_read(
-        $server => sub {
-            my ($self, $id, $chunk) = @_;
-
-            $self->drop($id);
-            $self->timer(0.5 => sub { shift->stop });
-        }
+    $curr_stream->once(
+        read => sub {
+            my ($stream, $chunk) = @_;
+            Mojo::IOLoop->drop($server);
+       }
     );
 
     $redis->execute(
@@ -144,6 +150,8 @@ sub check4 {
             my ($redis, $result) = @_;
             $r4          = $result;
             $redis_error = $redis->error;
+            Mojo::IOLoop->stop;
+
         }
     );
 

@@ -100,27 +100,20 @@ sub connect {
     $self->{_connecting} = 1;
     $self->{_connection} = $self->ioloop->client(
         {   address    => $address,
-            port       => $port 
+            port       => $port
         }, sub {
-          my ($stream,$chunk)=@_;
+          my ($loop, $err, $stream)=@_;
+
 
           delete $self->{_connecting};
           $stream->timeout($self->timeout);
           $self->_send_next_message;
 
-            $stream->on(read    => sub { 
-              my $chunk=pop;
+            $stream->on(read => sub {
+              my ($stream,$chunk)=@_;
               $self->{_protocol}->parse($chunk);
             });
-            $stream->on(error   => sub { 
-              my ($str,$error)=@_;
-              $self->error($error);
-              $self->_inform_queue;
-
-              $self->on_error->($self);
-              $self->ioloop->drop($self->{_connection});
-            });
-            $stream->on(close   => sub { 
+          $stream->on(close   => sub {
               my $str=shift;
               $self->{error} ||= 'disconnected';
               $self->_inform_queue;
@@ -130,6 +123,15 @@ sub connect {
               delete $self->{_connecting};
               delete $self->{_connection};
             });
+            $stream->on(error => sub {
+              my ($str,$error)=@_;
+              $self->error($error);
+              $self->_inform_queue;
+
+              $self->on_error->($self);
+              $self->ioloop->drop($self->{_connection});
+            });
+
         }
     );
 
@@ -202,7 +204,7 @@ sub _create_protocol {
 sub _send_next_message {
     my ($self) = @_;
 
-    if ((my $c = $self->{_connection}) && !$self->{_connecting}) {
+    if ((my $id = $self->{_connection}) && !$self->{_connecting}) {
         while (my $args = shift @{$self->{_message_queue}}) {
             my $cmd_arg = [];
             my $cmd = {type => '*', data => $cmd_arg};
@@ -213,7 +215,7 @@ sub _send_next_message {
             }
             my $message = $self->{_protocol}->encode($cmd);
 
-            $self->ioloop->write($c, $message);
+            $self->ioloop->stream($id)->write($message);
         }
     }
 }
