@@ -8,7 +8,7 @@ use warnings;
 use ExtUtils::MakeMaker;
 
 WriteMakefile(
-    NAME          => 'MojoX::Redis',
+    NAME          => 'Mojo::Redis',
     AUTHOR        => 'Sergey Zasenko <undef@cpan.org>',
     LICENSE       => 'artistic_2',
     VERSION_FROM  => 'lib/MojoX/Redis.pm',

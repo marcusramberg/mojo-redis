@@ -1,12 +1,12 @@
 =head1 NAME
 
-MojoX::Redis - asynchronous Redis client for L<Mojolicious>.
+Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
 
 =head1 SYNOPSIS
 
-    use MojoX::Redis;
+    use Mojo::Redis;
 
-    my $redis = MojoX::Redis->new(server => '127.0.0.1:6379');
+    my $redis = Mojo::Redis->new(server => '127.0.0.1:6379');
 
     # Execute some commands
     $redis->ping(
@@ -44,12 +44,12 @@ Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
 application.
 
     use Mojolicious::Lite;
-    use MojoX::Redis;
+    use Mojo::Redis;
 
     get '/' => sub {
         my $self = shift;
 
-        my $redis = MojoX::Redis->new(ioloop => Mojo::IOLoop->new);
+        my $redis = Mojo::Redis->new(ioloop => Mojo::IOLoop->new);
 
         my $value;
 
@@ -72,11 +72,11 @@ application.
 
 =head1 DESCRIPTION
 
-L<MojoX::Redis> is an asynchronous client to Redis for Mojo.
+L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
 
 =head1 ATTRIBUTES
 
-L<MojoX::Redis> implements the following attributes.
+L<Mojo::Redis> implements the following attributes.
 
 =head2 C<server>
 
@@ -121,14 +121,14 @@ Using L<Protocol::Redis::XS> instead of default choice can speedup parsing.
 
 =head1 METHODS
 
-L<MojoX::Redis> supports Redis' methods.
+L<Mojo::Redis> supports Redis' methods.
 
     $redis->set(key => 'value);
     $redis->get(key => sub { ... });
 
 For more details take a look at C<execute> method.
 
-Also L<MojoX::Redis> implements the following ones.
+Also L<Mojo::Redis> implements the following ones.
 
 =head2 C<connect>
 

@@ -12,10 +12,10 @@ plan skip_all => 'Setup $REDIS_SERVER'
 
 plan tests => 15;
 
-use_ok 'MojoX::Redis';
+use_ok 'Mojo::Redis';
 
 my $redis =
-  new_ok 'MojoX::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
+  new_ok 'Mojo::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
 
 my $errors = 0;
 $redis->on_error(sub { $errors++ });

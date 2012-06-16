@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 # Becouse of two async applications working together this tests look ugly
-# if you want to examine MojoX::Redis API take a look at t/redis_live.t
+# if you want to examine Mojo::Redis API take a look at t/redis_live.t
 
 use strict;
 use warnings;
@@ -10,7 +10,7 @@ use Test::More tests => 10;
 
 use Mojo::IOLoop;
 
-use_ok 'MojoX::Redis';
+use_ok 'Mojo::Redis';
 
 my $port = Mojo::IOLoop->generate_port;
 
@@ -37,7 +37,7 @@ my $server = Mojo::IOLoop->server(
     });
 
 my $redis =
-  new_ok 'MojoX::Redis' => [server => "127.0.0.1:$port", timeout => 1];
+  new_ok 'Mojo::Redis' => [server => "127.0.0.1:$port", timeout => 1];
 Mojo::IOLoop->timer(5 => sub { $redis->stop }); #security valve
 
 

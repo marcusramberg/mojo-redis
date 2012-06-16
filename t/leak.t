@@ -6,7 +6,7 @@ use warnings;
 use Test::More;
 use Mojo::IOLoop;
 use utf8;
-use MojoX::Redis;
+use Mojo::Redis;
 
 BEGIN {
     eval q{use Test::LeakTrace};
@@ -18,7 +18,7 @@ plan skip_all => 'Setup $REDIS_SERVER'
 
 plan tests => 4;
 
-my $redis = MojoX::Redis->new(server => $ENV{REDIS_SERVER}, timeout => 5);
+my $redis = Mojo::Redis->new(server => $ENV{REDIS_SERVER}, timeout => 5);
 
 $redis->on_error(sub { });
 

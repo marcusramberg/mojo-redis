@@ -1,9 +1,9 @@
-package MojoX::Redis;
+package Mojo::Redis;
 
 use strict;
 use warnings;
 
-our $VERSION = 0.83;
+our $VERSION = 0.9;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -276,13 +276,13 @@ __END__
 
 =head1 NAME
 
-MojoX::Redis - asynchronous Redis client for L<Mojolicious>.
+Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
 
 =head1 SYNOPSIS
 
-    use MojoX::Redis;
+    use Mojo::Redis;
 
-    my $redis = MojoX::Redis->new(server => '127.0.0.1:6379');
+    my $redis = Mojo::Redis->new(server => '127.0.0.1:6379');
 
     # Execute some commands
     $redis->ping(
@@ -320,12 +320,12 @@ Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
 application.
 
     use Mojolicious::Lite;
-    use MojoX::Redis;
+    use Mojo::Redis;
 
     get '/' => sub {
         my $self = shift;
 
-        my $redis = MojoX::Redis->new(ioloop => Mojo::IOLoop->new);
+        my $redis = Mojo::Redis->new(ioloop => Mojo::IOLoop->new);
 
         my $value;
 
@@ -348,11 +348,11 @@ application.
 
 =head1 DESCRIPTION
 
-L<MojoX::Redis> is an asynchronous client to Redis for Mojo.
+L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
 
 =head1 ATTRIBUTES
 
-L<MojoX::Redis> implements the following attributes.
+L<Mojo::Redis> implements the following attributes.
 
 =head2 C<server>
 
@@ -397,14 +397,14 @@ Using L<Protocol::Redis::XS> instead of default choice can speedup parsing.
 
 =head1 METHODS
 
-L<MojoX::Redis> supports Redis' methods.
+L<Mojo::Redis> supports Redis' methods.
 
     $redis->set(key => 'value);
     $redis->get(key => sub { ... });
 
 For more details take a look at C<execute> method.
 
-Also L<MojoX::Redis> implements the following ones.
+Also L<Mojo::Redis> implements the following ones.
 
 =head2 C<connect>
 
@@ -460,8 +460,8 @@ L<Protocol::Redis>, L<Mojolicious>, L<Mojo::IOLoop>
 
 =head2 IRC
 
-    #ru.pm on irc.perl.org
-    
+    #mojo on irc.perl.org
+
 =head1 DEVELOPMENT
 
 =head2 Repository
@@ -472,9 +472,13 @@ L<Protocol::Redis>, L<Mojolicious>, L<Mojo::IOLoop>
 
 Sergey Zasenko, C<undef@cpan.org>.
 
+Forked from MojoX::Redis and updated to new IOLoop API by
+Marcus Ramberg C<mramberg@cpan.org>.
+
 =head1 COPYRIGHT AND LICENSE
 
 Copyright (C) 2010-2011, Sergey Zasenko
+          (C) 2012, Marcus Ramberg
 
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.
