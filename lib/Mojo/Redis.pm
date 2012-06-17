@@ -18,19 +18,19 @@ __PACKAGE__->attr(error    => undef);
 __PACKAGE__->attr(timeout  => 300);
 __PACKAGE__->attr(encoding => 'UTF-8');
 __PACKAGE__->attr(
-    on_error => sub {
-        sub {
-            my $redis = shift;
-            warn "Redis error: ", $redis->error, "\n";
-          }
-    }
+  on_error => sub {
+    sub {
+      my $redis = shift;
+      warn "Redis error: ", $redis->error, "\n";
+      }
+  }
 );
 
 __PACKAGE__->attr(
-    protocol_redis => sub {
-        require Protocol::Redis;
-        "Protocol::Redis";
-    }
+  protocol_redis => sub {
+    require Protocol::Redis;
+    "Protocol::Redis";
+  }
 );
 
 our @COMMANDS = qw/
@@ -50,225 +50,232 @@ our @COMMANDS = qw/
   /;
 
 sub AUTOLOAD {
-    my ($package, $cmd) = our $AUTOLOAD =~ /^([\w\:]+)\:\:(\w+)$/;
+  my ($package, $cmd) = our $AUTOLOAD =~ /^([\w\:]+)\:\:(\w+)$/;
 
-    Carp::croak(qq|Can't locate object method "$cmd" via "$package"|)
-      unless List::Util::first { $_ eq $cmd } @COMMANDS;
+  Carp::croak(qq|Can't locate object method "$cmd" via "$package"|)
+    unless List::Util::first { $_ eq $cmd } @COMMANDS;
 
-    my $self = shift;
+  my $self = shift;
 
-    my $args = [@_];
-    my $cb   = $args->[-1];
-    if (ref $cb ne 'CODE') {
-        $cb = undef;
-    }
-    else {
-        pop @$args;
-    }
+  my $args = [@_];
+  my $cb   = $args->[-1];
+  if (ref $cb ne 'CODE') {
+    $cb = undef;
+  }
+  else {
+    pop @$args;
+  }
 
-    $self->execute($cmd, $args, $cb);
+  $self->execute($cmd, $args, $cb);
 }
 
 sub DESTROY {
-    my $self = shift;
+  my $self = shift;
 
-    # Loop
-    return unless my $loop = $self->ioloop;
+  # Loop
+  return unless my $loop = $self->ioloop;
 
-    # Cleanup connection
-    $loop->drop($self->{_connection})
-      if $self->{_connection};
+  # Cleanup connection
+  $loop->drop($self->{_connection})
+    if $self->{_connection};
 }
 
 sub connect {
-    my $self = shift;
+  my $self = shift;
 
-    # drop old connection
-    if ($self->connected) {
-        $self->ioloop->drop($self->{_connection});
-    }
+  # drop old connection
+  if ($self->connected) {
+    $self->ioloop->drop($self->{_connection});
+  }
 
-    $self->server =~ m{^([^:]+)(:(\d+))?};
-    my $address = $1;
-    my $port = $3 || 6379;
+  $self->server =~ m{^([^:]+)(:(\d+))?};
+  my $address = $1;
+  my $port = $3 || 6379;
 
-    Scalar::Util::weaken $self;
+  Scalar::Util::weaken $self;
 
-    $self->{_protocol} = $self->_create_protocol;
+  $self->{_protocol} = $self->_create_protocol;
 
-    # connect
-    $self->{_connecting} = 1;
-    $self->{_connection} = $self->ioloop->client(
-        {   address    => $address,
-            port       => $port
-        }, sub {
-          my ($loop, $err, $stream)=@_;
+  # connect
+  $self->{_connecting} = 1;
+  $self->{_connection} = $self->ioloop->client(
+    { address => $address,
+      port    => $port
+    },
+    sub {
+      my ($loop, $err, $stream) = @_;
 
+
+      delete $self->{_connecting};
+      $stream->timeout($self->timeout);
+      $self->_send_next_message;
+
+      $stream->on(
+        read => sub {
+          my ($stream, $chunk) = @_;
+          $self->{_protocol}->parse($chunk);
+        }
+      );
+      $stream->on(
+        close => sub {
+          my $str = shift;
+          $self->{error} ||= 'disconnected';
+          $self->_inform_queue;
+
+          delete $self->{_message_queue};
 
           delete $self->{_connecting};
-          $stream->timeout($self->timeout);
-          $self->_send_next_message;
-
-            $stream->on(read => sub {
-              my ($stream,$chunk)=@_;
-              $self->{_protocol}->parse($chunk);
-            });
-          $stream->on(close   => sub {
-              my $str=shift;
-              $self->{error} ||= 'disconnected';
-              $self->_inform_queue;
-
-              delete $self->{_message_queue};
-
-              delete $self->{_connecting};
-              delete $self->{_connection};
-            });
-            $stream->on(error => sub {
-              my ($str,$error)=@_;
-              $self->error($error);
-              $self->_inform_queue;
-
-              $self->on_error->($self);
-              $self->ioloop->drop($self->{_connection});
-            });
-
+          delete $self->{_connection};
         }
-    );
+      );
+      $stream->on(
+        error => sub {
+          my ($str, $error) = @_;
+          $self->error($error);
+          $self->_inform_queue;
 
-    return $self;
+          $self->on_error->($self);
+          $self->ioloop->drop($self->{_connection});
+        }
+      );
+
+    }
+  );
+
+  return $self;
 }
 
 sub connected {
-    my $self = shift;
+  my $self = shift;
 
-    return $self->{_connection};
+  return $self->{_connection};
 }
 
 sub execute {
-    my ($self, $command, $args, $cb) = @_;
+  my ($self, $command, $args, $cb) = @_;
 
-    if (!$cb && ref $args eq 'CODE') {
-        $cb   = $args;
-        $args = [];
-    }
-    elsif (!ref $args) {
-        $args = [$args];
-    }
+  if (!$cb && ref $args eq 'CODE') {
+    $cb   = $args;
+    $args = [];
+  }
+  elsif (!ref $args) {
+    $args = [$args];
+  }
 
-    unshift @$args, uc $command;
+  unshift @$args, uc $command;
 
-    my $mqueue = $self->{_message_queue} ||= [];
-    my $cqueue = $self->{_cb_queue}      ||= [];
+  my $mqueue = $self->{_message_queue} ||= [];
+  my $cqueue = $self->{_cb_queue}      ||= [];
 
 
-    push @$mqueue, $args;
-    push @$cqueue, $cb;
+  push @$mqueue, $args;
+  push @$cqueue, $cb;
 
-    $self->connect unless $self->{_connection};
-    $self->_send_next_message;
+  $self->connect unless $self->{_connection};
+  $self->_send_next_message;
 
-    return $self;
+  return $self;
 }
 
 sub start {
-    my ($self) = @_;
+  my ($self) = @_;
 
-    $self->ioloop->start;
-    return $self;
+  $self->ioloop->start;
+  return $self;
 }
 
 sub stop {
-    my ($self) = @_;
+  my ($self) = @_;
 
-    $self->ioloop->stop;
-    return $self;
+  $self->ioloop->stop;
+  return $self;
 }
 
 sub _create_protocol {
-    my $self = shift;
+  my $self = shift;
 
-    my $protocol = $self->protocol_redis->new(api => 1);
-    $protocol->on_message(
-        sub {
-            my ($parser, $command) = @_;
-            $self->_return_command_data($command);
-        }
-    );
+  my $protocol = $self->protocol_redis->new(api => 1);
+  $protocol->on_message(
+    sub {
+      my ($parser, $command) = @_;
+      $self->_return_command_data($command);
+    }
+  );
 
-    Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/)
-      unless $protocol;
+  Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/)
+    unless $protocol;
 
-    $protocol;
+  $protocol;
 }
 
 sub _send_next_message {
-    my ($self) = @_;
+  my ($self) = @_;
 
-    if ((my $id = $self->{_connection}) && !$self->{_connecting}) {
-        while (my $args = shift @{$self->{_message_queue}}) {
-            my $cmd_arg = [];
-            my $cmd = {type => '*', data => $cmd_arg};
-            foreach my $token (@$args) {
-                $token = Encode::encode($self->encoding, $token)
-                  if $self->encoding;
-                push @$cmd_arg, {type => '$', data => $token};
-            }
-            my $message = $self->{_protocol}->encode($cmd);
+  if ((my $id = $self->{_connection}) && !$self->{_connecting}) {
+    while (my $args = shift @{$self->{_message_queue}}) {
+      my $cmd_arg = [];
+      my $cmd = {type => '*', data => $cmd_arg};
+      foreach my $token (@$args) {
+        $token = Encode::encode($self->encoding, $token)
+          if $self->encoding;
+        push @$cmd_arg, {type => '$', data => $token};
+      }
+      my $message = $self->{_protocol}->encode($cmd);
 
-            $self->ioloop->stream($id)->write($message);
-        }
+      $self->ioloop->stream($id)->write($message);
     }
+  }
 }
 
 
 sub _reencode_message {
-    my ($self, $message) = @_;
+  my ($self, $message) = @_;
 
-    my ($type, $data) = @{$message}{'type', 'data'};
+  my ($type, $data) = @{$message}{'type', 'data'};
 
-    # Decode data
-    if ($type ne '*' && $self->encoding && $data) {
-        $data = Encode::decode($self->encoding, $data);
-    }
+  # Decode data
+  if ($type ne '*' && $self->encoding && $data) {
+    $data = Encode::decode($self->encoding, $data);
+  }
 
-    if ($type eq '-') {
-        $self->error($data);
-        $self->on_error->($self);
-        return;
+  if ($type eq '-') {
+    $self->error($data);
+    $self->on_error->($self);
+    return;
+  }
+  elsif ($type ne '*') {
+    return [$data];
+  }
+  else {
+    my $reencoded_data = [];
+    foreach my $item (@$data) {
+      my $message = $self->_reencode_message($item);
+      push @$reencoded_data, $message;
     }
-    elsif ($type ne '*') {
-        return [$data];
-    }
-    else {
-        my $reencoded_data = [];
-        foreach my $item (@$data) {
-            my $message = $self->_reencode_message($item);
-            push @$reencoded_data, $message;
-        }
-        return $reencoded_data;
-    }
+    return $reencoded_data;
+  }
 }
 
 sub _return_command_data {
-    my ($self, $message) = @_;
+  my ($self, $message) = @_;
 
-    my $data = $self->_reencode_message($message);
+  my $data = $self->_reencode_message($message);
 
-    my $cb = shift @{$self->{_cb_queue}};
-    $cb->($self, $data) if $cb;
+  my $cb = shift @{$self->{_cb_queue}};
+  $cb->($self, $data) if $cb;
 
-    # Reset error after callback dispatching
-    $self->error(undef);
+  # Reset error after callback dispatching
+  $self->error(undef);
 }
 
 
 sub _inform_queue {
-    my ($self) = @_;
+  my ($self) = @_;
 
-    for my $cb (@{$self->{_cb_queue}}) {
-        $cb->($self) if $cb;
-    }
-    $self->{_queue} = [];
+  for my $cb (@{$self->{_cb_queue}}) {
+    $cb->($self) if $cb;
+  }
+  $self->{_queue} = [];
 }
 
 1;
