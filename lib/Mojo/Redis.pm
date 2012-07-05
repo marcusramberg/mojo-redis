@@ -244,7 +244,7 @@ sub _reencode_message {
     return;
   }
   elsif ($type ne '*') {
-    return [$data];
+    return $data;
   }
   else {
     my $reencoded_data = [];
