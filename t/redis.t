@@ -52,13 +52,13 @@ $redis->execute(
 
 
 is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n", 'input command';
-is_deeply $r, ['ok'], 'result';
+is $r, 'ok', 'result';
 
 is $sbuffer2,
   "*2\r\n\$3\r\nGET\r\n\$5\r\ntest1\r\n*2\r\n\$3\r\nGET\r\n\$5\r\ntest2\r\n",
   'input commands';
-is_deeply $r1, ['ok1'], 'first command';
-is_deeply $r2, ['ok2'], 'second command';
+is $r1, 'ok1', 'first command';
+is $r2, 'ok2', 'second command';
 
 is $sbuffer3, "*3\r\n\$3\r\nSET\r\n\$3\r\nkey\r\n\$5\r\nvalue\r\n",
   'fast command';
@@ -140,7 +140,7 @@ sub check4 {
     $curr_stream->once(
         read => sub {
             my ($stream, $chunk) = @_;
-            Mojo::IOLoop->drop($server);
+            Mojo::IOLoop->remove($server);
        }
     );
 
