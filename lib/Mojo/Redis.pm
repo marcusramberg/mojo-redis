@@ -15,7 +15,7 @@ require Carp;
 __PACKAGE__->attr(server   => '127.0.0.1:6379');
 __PACKAGE__->attr(ioloop   => sub { Mojo::IOLoop->singleton });
 __PACKAGE__->attr(error    => undef);
-__PACKAGE__->attr(timeout  => 300);
+__PACKAGE__->attr(timeout  =>  10);
 __PACKAGE__->attr(encoding => 'UTF-8');
 __PACKAGE__->attr(
   on_error => sub {
@@ -76,16 +76,17 @@ sub DESTROY {
   return unless my $loop = $self->ioloop;
 
   # Cleanup connection
-  $loop->drop($self->{_connection})
+  $loop->remove($self->{_connection})
     if $self->{_connection};
 }
+
 
 sub connect {
   my $self = shift;
 
   # drop old connection
   if ($self->connected) {
-    $self->ioloop->drop($self->{_connection});
+    $self->ioloop->remove($self->{_connection});
   }
 
   $self->server =~ m{^([^:]+)(:(\d+))?};
@@ -135,7 +136,7 @@ sub connect {
           $self->_inform_queue;
 
           $self->on_error->($self);
-          $self->ioloop->drop($self->{_connection});
+          $self->ioloop->remove($self->{_connection});
         }
       );
 
@@ -143,6 +144,15 @@ sub connect {
   );
 
   return $self;
+}
+
+sub disconnect {
+  my $self = shift;
+
+  # drop old connection
+  if ($self->connected) {
+    $self->ioloop->remove($self->{_connection});
+  }
 }
 
 sub connected {
@@ -296,7 +306,7 @@ Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
         sub {
             my ($redis, $res) = @_;
 
-            if ($res) {
+            if (defined $res) {
                 print "Got result: ", $res->[0], "\n";
             }
             else {
@@ -312,7 +322,7 @@ Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
         key => sub {
             my ($redis, $res) = @_;
 
-            print "Value of 'key' is $res->[0]\n";
+            print "Value of 'key' is $res\n";
         }
     );
 
