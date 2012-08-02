@@ -168,6 +168,9 @@ sub execute {
     $cb   = $args;
     $args = [];
   }
+ elsif (ref $args && @$args==1 && ref $args->[0] eq 'HASH') {
+    $args = [ map { $_ => $args->{$_} } keys $args->[0] ];
+  }
   elsif (!ref $args) {
     $args = [$args];
   }
