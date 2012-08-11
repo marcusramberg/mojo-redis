@@ -25,7 +25,6 @@ use Data::Dumper;
 $redis->subscribe(
     'foo','bar' => sub {
         my ($redis,$res)=@_;
-        warn('Got ' .Data::Dumper::Dumper($res));
         $cb++;
         if($cb==1) {
             is_deeply( $res, ['subscribe', 'foo', 1], "first" );
