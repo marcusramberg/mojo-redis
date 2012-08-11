@@ -1,13 +1,9 @@
 package Mojo::Redis;
 
-use strict;
-use warnings;
-
 our $VERSION = 0.9;
-use Mojo::Base -base;
+use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
-use List::Util   ();
 use Scalar::Util ();
 use Encode       ();
 require Carp;
@@ -17,12 +13,6 @@ has ioloop   => sub { Mojo::IOLoop->singleton };
 has error    => undef;
 has timeout  => 10;
 has encoding => 'UTF-8';
-has on_error => sub {
-  sub {
-    my $redis = shift;
-    warn "Redis error: ", $redis->error, "\n";
-    }
-};
 
 has protocol_redis => sub {
   require Protocol::Redis;
@@ -46,7 +36,7 @@ has protocol => sub {
   $protocol;
 };
 
-our @COMMANDS = qw/
+for my $cmd (qw/
   append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
   config_resetstat dbsize debug_object debug_segfault decr decrby del discard
   echo exec exists expire expireat flushall flushdb get getbit getrange getset
@@ -60,26 +50,13 @@ our @COMMANDS = qw/
   unsubscribe unwatch watch zadd zcard zcount zincrby zinterstore zrange
   zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
   zrevrangebyscore zrevrank zscore zunionstore
-  /;
-
-sub AUTOLOAD {
-  my ($package, $cmd) = our $AUTOLOAD =~ /^([\w\:]+)\:\:(\w+)$/;
-
-  Carp::croak(qq|Can't locate object method "$cmd" via "$package"|)
-    unless List::Util::first { $_ eq $cmd } @COMMANDS;
-
-  my $self = shift;
-
-  my $args = [@_];
-  my $cb   = $args->[-1];
-  if (ref $cb ne 'CODE') {
-    $cb = undef;
-  }
-  else {
-    pop @$args;
-  }
-
-  $self->execute($cmd, $args, $cb);
+/) {
+  eval(
+    "sub $cmd {"
+   .'my $cb = ref $_[-1] eq q(CODE) ? pop : undef;'
+   .'my $self = shift;'
+   ."\$self->execute($cmd => [\@_], \$cb); } 1;"
+  ) or die $@;
 }
 
 sub DESTROY {
@@ -147,11 +124,10 @@ sub connect {
           $self->error($error);
           $self->_inform_queue;
 
-          $self->on_error->($self);
+          $self->emit_safe(error => $error);
           $self->ioloop->remove($self->{_connection});
         }
       );
-
     }
   );
 
@@ -265,21 +241,6 @@ sub execute {
   return $self;
 }
 
-sub start {
-  my ($self) = @_;
-
-  $self->ioloop->start;
-  return $self;
-}
-
-sub stop {
-  my ($self) = @_;
-
-  $self->ioloop->stop;
-  return $self;
-}
-
-
 sub _send_next_message {
   my ($self) = @_;
 
@@ -312,7 +273,7 @@ sub _reencode_message {
 
   if ($type eq '-') {
     $self->error($data);
-    $self->on_error->($self);
+    $self->emit_safe(error => $data);
     return;
   }
   elsif ($type ne '*') {
@@ -349,6 +310,13 @@ sub _inform_queue {
   }
   $self->{_queue} = [];
 }
+
+# avoid pod test
+*on_error = sub {
+    my $self = shift;
+    warn "on_error() is deprecated! use on(error => sub {}) instead";
+    $self->on(error => shift);
+};
 
 1;
 __END__
@@ -390,10 +358,10 @@ Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
 
 
     # Cleanup connection
-    $redis->quit(sub { shift->stop });
+    $redis->quit(sub { shift->ioloop->stop });
 
     # Start IOLoop (in case it is not started yet)
-    $redis->start;
+    $redis->ioloop->start;
 
 Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
 application.
@@ -412,13 +380,13 @@ application.
             foo => sub {
                 my ($redis, $result) = @_;
 
-                $redis->quit->stop;
+                $redis->quit->ioloop->stop;
 
                 return app->log->error($redis->error) unless $result;
 
                 $value = $result->[0];
             }
-        )->start;
+        )->ioloop->start;
 
         $self->render(text => qq(Foo value is "$value"));
     };
@@ -428,6 +396,19 @@ application.
 =head1 DESCRIPTION
 
 L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
+
+=head1 EVENTS
+
+=head2 error
+
+    $redis->on(error => sub{
+        my $redis = shift;
+        warn 'Redis error ', $redis->error, "\n";
+    });
+
+Executes if error occured. Called before commands callbacks.
+
+
 
 =head1 ATTRIBUTES
 
@@ -525,21 +506,6 @@ returns the id of the connection in the L<Mojo::IOLoop>.
 Returns error occured during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
-
-=head2 C<on_error>
-
-    $redis->on_error(sub{
-        my $redis = shift;
-        warn 'Redis error ', $redis->error, "\n";
-    });
-
-Executes if error occured. Called before commands callbacks.
-
-=head2 C<start>
-
-    $redis->start;
-
-Starts IOLoop. Shortcut for $redis->ioloop->start;
 
 =head1 SEE ALSO
 
