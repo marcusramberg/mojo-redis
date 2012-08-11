@@ -297,10 +297,10 @@ Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
 
 
     # Cleanup connection
-    $redis->quit(sub { shift->stop });
+    $redis->quit(sub { shift->ioloop->stop });
 
     # Start IOLoop (in case it is not started yet)
-    $redis->start;
+    $redis->ioloop->start;
 
 Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
 application.
@@ -319,13 +319,13 @@ application.
             foo => sub {
                 my ($redis, $result) = @_;
 
-                $redis->quit->stop;
+                $redis->quit->ioloop->stop;
 
                 return app->log->error($redis->error) unless $result;
 
                 $value = $result->[0];
             }
-        )->start;
+        )->ioloop->start;
 
         $self->render(text => qq(Foo value is "$value"));
     };
@@ -435,12 +435,6 @@ $redis->error.
 Returns error occured during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
-
-=head2 C<start>
-
-    $redis->start;
-
-Starts IOLoop. Shortcut for $redis->ioloop->start;
 
 =head1 SEE ALSO
 
