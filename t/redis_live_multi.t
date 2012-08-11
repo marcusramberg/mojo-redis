@@ -22,8 +22,8 @@ $redis->del('test')->multi->rpush(test => 'ok')->lrange(test => 0, -1)->exec(
     sub {
         my ($redis, $res) = @_;
         $result = $res;
-        $redis->stop;
+        $redis->ioloop->stop;
     }
-)->start;
+)->ioloop->start;
 
 is_deeply $result, [1, ['ok']];

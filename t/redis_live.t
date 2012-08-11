@@ -88,5 +88,5 @@ $redis->set(test => 'ok')->get(
     }
 );
 
-$redis->quit(sub { shift->stop; })->start;
+$redis->quit(sub { shift->ioloop->stop; })->ioloop->start;
 

@@ -204,21 +204,6 @@ sub execute {
   return $self;
 }
 
-sub start {
-  my ($self) = @_;
-
-  $self->ioloop->start;
-  return $self;
-}
-
-sub stop {
-  my ($self) = @_;
-
-  $self->ioloop->stop;
-  return $self;
-}
-
-
 sub _send_next_message {
   my ($self) = @_;
 

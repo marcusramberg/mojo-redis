@@ -38,7 +38,7 @@ my $server = Mojo::IOLoop->server(
 
 my $redis =
   new_ok 'Mojo::Redis' => [server => "127.0.0.1:$port", timeout => 1];
-Mojo::IOLoop->timer(5 => sub { $redis->stop }); #security valve
+Mojo::IOLoop->timer(5 => sub { $redis->ioloop->stop }); #security valve
 
 
 $redis->execute(
@@ -48,7 +48,7 @@ $redis->execute(
         $r = $result;
         &test2;
     }
-)->start;
+)->ioloop->start;
 
 
 is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n", 'input command';
