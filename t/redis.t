@@ -5,8 +5,9 @@
 
 use strict;
 use warnings;
+use lib 'lib';
 
-use Test::More tests => 10;
+use Test::More tests => 11;
 
 use Mojo::IOLoop;
 
@@ -38,7 +39,22 @@ my $server = Mojo::IOLoop->server(
 
 my $redis =
   new_ok 'Mojo::Redis' => [server => "127.0.0.1:$port", timeout => 1];
-Mojo::IOLoop->timer(5 => sub { $redis->stop }); #security valve
+Mojo::IOLoop->timer(5 => sub { $redis->ioloop->stop }); #security valve
+
+can_ok($redis, qw/
+  append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
+  config_resetstat dbsize debug_object debug_segfault decr decrby del discard
+  echo exec exists expire expireat flushall flushdb get getbit getrange getset
+  hdel hexists hget hgetall hincrby hkeys hlen hmget hmset hset hsetnx hvals
+  incr incrby info keys lastsave lindex linsert llen lpop lpush lpushx lrange
+  lrem lset ltrim mget monitor move mset msetnx multi persist ping psubscribe
+  publish punsubscribe quit randomkey rename renamenx rpop rpoplpush rpush
+  rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
+  setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
+  spop srandmember srem strlen subscribe sunion sunionstore sync ttl type
+  unsubscribe unwatch watch zadd zcard zcount zincrby zinterstore zrange
+  zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
+  zrevrangebyscore zrevrank zscore zunionstore/);
 
 
 $redis->execute(
@@ -48,7 +64,7 @@ $redis->execute(
         $r = $result;
         &test2;
     }
-)->start;
+)->ioloop->start;
 
 
 is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n", 'input command';
