@@ -46,7 +46,7 @@ for my $cmd (qw/
   publish punsubscribe quit randomkey rename renamenx rpop rpoplpush rpush
   rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
   setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
-  spop srandmember srem strlen subscribe sunion sunionstore sync ttl type
+  spop srandmember srem strlen sunion sunionstore sync ttl type
   unsubscribe unwatch watch zadd zcard zcount zincrby zinterstore zrange
   zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
   zrevrangebyscore zrevrank zscore zunionstore
@@ -372,7 +372,7 @@ application.
     get '/' => sub {
         my $self = shift;
 
-        my $redis = Mojo::Redis->new(ioloop => Mojo::IOLoop->new);
+        my $redis = mojo::redis->new(ioloop => mojo::ioloop->new);
 
         my $value;
 
