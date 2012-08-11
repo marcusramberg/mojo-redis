@@ -173,6 +173,66 @@ sub connected {
   return $self->{_connection};
 }
 
+sub subscribe {
+  my $cb=pop @_;
+  my ($self,@channels)=@_;
+  my $protocol = $self->protocol_redis->new(api => 1);
+  $protocol->on_message(
+    sub {
+      my ($parser, $message) = @_;
+      my $data = $self->_reencode_message($message);
+      $cb->($self, $data) if $cb;
+    }
+  );
+
+  $self->server =~ m{^([^:]+)(:(\d+))?};
+  my $address = $1;
+  my $port = $3 || 6379;
+
+  my $id;
+  $id = $self->ioloop->client(
+    { address => $address,
+      port    => $port
+    }, sub {
+      my ($loop, $err, $stream) = @_;
+
+      $stream->timeout($self->timeout);
+
+      $stream->on(
+        read => sub {
+          my ($stream, $chunk) = @_;
+          $protocol->parse($chunk);
+        }
+      );
+      $stream->on(
+        close => sub {
+          my $str = shift;
+          warn "subscription disconnected";
+        }
+      );
+      $stream->on(
+        error => sub {
+          my ($str, $error) = @_;
+          $self->error($error);
+
+          $self->on_error->($self);
+          $self->ioloop->remove($id);
+          }
+      );
+  my $cmd_arg = [];
+  my $cmd = {type => '*', data => $cmd_arg};
+  my @args=('subscribe',@channels);
+  foreach my $token (@args) {
+    $token = Encode::encode($self->encoding, $token)
+      if $self->encoding;
+    push @$cmd_arg, {type => '$', data => $token};
+  }
+  my $message = $self->protocol->encode($cmd);
+
+  $stream->write($message);
+  });
+}
+
 sub execute {
   my ($self, $command, $args, $cb) = @_;
 
