@@ -4,7 +4,6 @@ our $VERSION = 0.9;
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
-use List::Util   ();
 use Scalar::Util ();
 use Encode       ();
 require Carp;
@@ -37,7 +36,7 @@ has protocol => sub {
   $protocol;
 };
 
-our @COMMANDS = qw/
+for my $cmd (qw/
   append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
   config_resetstat dbsize debug_object debug_segfault decr decrby del discard
   echo exec exists expire expireat flushall flushdb get getbit getrange getset
@@ -51,26 +50,13 @@ our @COMMANDS = qw/
   unsubscribe unwatch watch zadd zcard zcount zincrby zinterstore zrange
   zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
   zrevrangebyscore zrevrank zscore zunionstore
-  /;
-
-sub AUTOLOAD {
-  my ($package, $cmd) = our $AUTOLOAD =~ /^([\w\:]+)\:\:(\w+)$/;
-
-  Carp::croak(qq|Can't locate object method "$cmd" via "$package"|)
-    unless List::Util::first { $_ eq $cmd } @COMMANDS;
-
-  my $self = shift;
-
-  my $args = [@_];
-  my $cb   = $args->[-1];
-  if (ref $cb ne 'CODE') {
-    $cb = undef;
-  }
-  else {
-    pop @$args;
-  }
-
-  $self->execute($cmd, $args, $cb);
+/) {
+  eval(
+    "sub $cmd {"
+   .'my $cb = ref $_[-1] eq q(CODE) ? pop : undef;'
+   .'my $self = shift;'
+   ."\$self->execute($cmd => [\@_], \$cb); } 1;"
+  ) or die $@;
 }
 
 sub DESTROY {
