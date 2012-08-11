@@ -22,13 +22,13 @@ $redis->on_error(sub { $errors++ });
 
 $redis->execute(
     ping => sub {
-        is_deeply $_[1], ['PONG'], "Line result test";
+        is $_[1], 'PONG', "Line result test";
     }
 );
 
 $redis->execute(
     qwe => sub {
-        is_deeply $_[1], undef, 'Uknown command result';
+        is $_, undef, 'Uknown command result';
         is $redis->error, q|ERR unknown command 'QWE'|,
           'Unknown command message';
         is $errors, 1, 'on_error works';
@@ -36,44 +36,41 @@ $redis->execute(
 );
 
 $redis->execute(
-    set => [test => 'test_ok'],
-    sub { is_deeply $_[1], ['OK'], "Another line result"; }
+    set =>[qw/test test_ok/],
+    sub { is $_[1], 'OK', "Another line result"; }
 );
 
-$redis->execute(
-    get => 'test',
-    sub { is_deeply $_[1], ['test_ok'], "Bulk result"; }
+$redis->execute(get => ['test'],
+    sub { is $_[1], 'test_ok', "Bulk result"; }
 );
 
-$redis->execute(del => 'test')->execute(rpush => [test => 'test1'])
+$redis->execute(del =>['test'])->execute(rpush => [test => 'test1'])
   ->execute(rpush => [test => 'test2'])->execute(
-    lrange => ['test', 0, -1],
+    lrange => [qw/test 0 -1/],
     sub {
-        is_deeply $_[1], [["test1"], ["test2"]], "Multi-bulk result";
+        is_deeply $_[1], ["test1", "test2"], "Multi-bulk result";
     }
   );
 
-$redis->execute(set => [test => 'привет'])->execute(
-    get => 'test',
-    sub { ok utf8::is_utf8($_[1]->[0]), "Unicode test" }
+$redis->execute(set => ['test','привет'])->execute(
+    get => ['test'],
+    sub {ok utf8::is_utf8($_[1]), "Unicode test" }
 );
 
-$redis->execute(del => 'test');
-$redis->execute(hmset => ['test', key => 'привет']);
-$redis->execute(
-    hmget => [test => 'key'],
+$redis->execute(del => ['test']);
+$redis->execute(hmset => ['test', 'key', 'привет']);
+$redis->execute(hmget => [qw/test key/],
     sub {
-        ok utf8::is_utf8($_[1]->[0]->[0]), "Unicode test on multibulk reply";
+         ok utf8::is_utf8($_[1]->[0]), "Unicode test on multibulk reply";
     }
 );
 
-$redis->execute(del => 'test')->execute(
-    get => 'test',
-    sub { is_deeply $_[1], [undef], "Bulk nil return check" }
+$redis->execute(del => ['test'])->execute(
+    get => ['test'],
+    sub { is $_[1], undef, "Bulk nil return check" }
 );
 
-$redis->execute(
-    lrange => ['test', 0, -1],
+$redis->execute(lrange =>[qw/test 0 -1/],
     sub {
         is_deeply $_[1], [], "Multi-bulk nil return check";
     }
@@ -81,13 +78,13 @@ $redis->execute(
 
 $redis->execute(
     ping => sub {
-        is_deeply $_[1], ['PONG'], "Last check";
+        is $_[1], 'PONG', "Last check";
     }
 );
 
 $redis->set(test => 'ok')->get(
     test => sub {
-        is_deeply $_[1], ['ok'], "Fast command check";
+        is $_[1], 'ok', "Fast command check";
     }
 );
 
