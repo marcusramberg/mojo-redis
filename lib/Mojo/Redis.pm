@@ -11,12 +11,12 @@ require Carp;
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
 has error    => undef;
-has timeout  =>  10;
+has timeout  => 10;
 has encoding => 'UTF-8';
 
 has protocol_redis => sub {
-    require Protocol::Redis;
-    "Protocol::Redis";
+  require Protocol::Redis;
+  "Protocol::Redis";
 };
 
 has protocol => sub {
@@ -149,6 +149,68 @@ sub connected {
   return $self->{_connection};
 }
 
+sub subscribe {
+  my $cb = pop @_;
+  my ($self, @channels) = @_;
+  my $protocol = $self->protocol_redis->new(api => 1);
+  $protocol->on_message(
+    sub {
+      my ($parser, $message) = @_;
+      my $data = $self->_reencode_message($message);
+      $cb->($self, $data) if $cb;
+    }
+  );
+
+  $self->server =~ m{^([^:]+)(:(\d+))?};
+  my $address = $1;
+  my $port = $3 || 6379;
+
+  my $id;
+  $id = $self->ioloop->client(
+    { address => $address,
+      port    => $port
+    },
+    sub {
+      my ($loop, $err, $stream) = @_;
+
+      $stream->timeout($self->timeout);
+
+      $stream->on(
+        read => sub {
+          my ($stream, $chunk) = @_;
+          $protocol->parse($chunk);
+        }
+      );
+      $stream->on(
+        close => sub {
+          my $str = shift;
+          warn "subscription disconnected";
+        }
+      );
+      $stream->on(
+        error => sub {
+          my ($str, $error) = @_;
+          $self->error($error);
+
+          $self->on_error->($self);
+          $self->ioloop->remove($id);
+        }
+      );
+      my $cmd_arg = [];
+      my $cmd     = {type => '*', data => $cmd_arg};
+      my @args    = ('subscribe', @channels);
+      foreach my $token (@args) {
+        $token = Encode::encode($self->encoding, $token)
+          if $self->encoding;
+        push @$cmd_arg, {type => '$', data => $token};
+      }
+      my $message = $self->protocol->encode($cmd);
+
+      $stream->write($message);
+    }
+  );
+}
+
 sub execute {
   my ($self, $command, $args, $cb) = @_;
 
@@ -156,9 +218,9 @@ sub execute {
     $cb   = $args;
     $args = [];
   }
- elsif (ref $args && @$args==1 && ref $args->[0] eq 'HASH') {
+  elsif (ref $args && @$args == 1 && ref $args->[0] eq 'HASH') {
 
-   $args = [ map { $_ => $args->{$_} } keys $args->[0] ];
+    $args = [map { $_ => $args->{$_} } keys $args->[0]];
   }
   elsif (!ref $args) {
     $args = [$args];
@@ -168,7 +230,6 @@ sub execute {
 
   my $mqueue = $self->{_message_queue} ||= [];
   my $cqueue = $self->{_cb_queue}      ||= [];
-
 
 
   push @$mqueue, $args;
@@ -424,6 +485,16 @@ Connect to C<Redis> server.
 Execute specified command on C<Redis> server. If error occured during
 request $result will be set to undef, error string can be obtained with 
 $redis->error.
+
+=head2 C<subscribe>
+
+   $id = $redis->subscribe('foo','bar' => sub {
+    my ($redis,$res)=@_;
+    # Called for subscribe messages and all publish calls.
+   });
+
+Opens up a new connection that subscribes to the given pubsub channels
+returns the id of the connection in the L<Mojo::IOLoop>.
 
 =head2 C<error>
 
