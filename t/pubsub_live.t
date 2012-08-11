@@ -18,7 +18,7 @@ my $redis =
   new_ok 'Mojo::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
 
 my $errors = 0;
-$redis->on_error(sub { $errors++ });
+$redis->on(error => sub { $errors++ });
 
 my $cb=0;
 use Data::Dumper;
@@ -34,11 +34,11 @@ $redis->subscribe(
         }
         elsif($cb==3) {
             is_deeply( $res, ['message', 'foo','shoo'], "third");
-             $redis->stop;
+             $redis->ioloop->stop;
         }
     }
 );
 
 $redis->execute('publish',['foo', 'shoo']);
-$redis->publish('bar', 'once mo')->start;
+$redis->publish('bar', 'once mo')->ioloop->start;
 
