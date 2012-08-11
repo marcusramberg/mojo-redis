@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 our $VERSION = 0.9;
-use base 'Mojo::Base';
+use Mojo::Base -base;
 
 use Mojo::IOLoop;
 use List::Util   ();
@@ -12,26 +12,39 @@ use Scalar::Util ();
 use Encode       ();
 require Carp;
 
-__PACKAGE__->attr(server   => '127.0.0.1:6379');
-__PACKAGE__->attr(ioloop   => sub { Mojo::IOLoop->singleton });
-__PACKAGE__->attr(error    => undef);
-__PACKAGE__->attr(timeout  =>  10);
-__PACKAGE__->attr(encoding => 'UTF-8');
-__PACKAGE__->attr(
-  on_error => sub {
+has server   => '127.0.0.1:6379';
+has ioloop   => sub { Mojo::IOLoop->singleton };
+has error    => undef;
+has timeout  =>  10;
+has encoding => 'UTF-8';
+has on_error => sub {
     sub {
       my $redis = shift;
       warn "Redis error: ", $redis->error, "\n";
       }
-  }
-);
+};
 
-__PACKAGE__->attr(
-  protocol_redis => sub {
+has protocol_redis => sub {
     require Protocol::Redis;
     "Protocol::Redis";
-  }
-);
+};
+
+has protocol => sub {
+  my $self = shift;
+
+  my $protocol = $self->protocol_redis->new(api => 1);
+  $protocol->on_message(
+    sub {
+      my ($parser, $command) = @_;
+      $self->_return_command_data($command);
+    }
+  );
+
+  Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/)
+    unless $protocol;
+
+  $protocol;
+};
 
 our @COMMANDS = qw/
   append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
@@ -95,7 +108,6 @@ sub connect {
 
   Scalar::Util::weaken $self;
 
-  $self->{_protocol} = $self->_create_protocol;
 
   # connect
   $self->{_connecting} = 1;
@@ -114,7 +126,7 @@ sub connect {
       $stream->on(
         read => sub {
           my ($stream, $chunk) = @_;
-          $self->{_protocol}->parse($chunk);
+          $self->protocol->parse($chunk);
         }
       );
       $stream->on(
@@ -168,6 +180,10 @@ sub execute {
     $cb   = $args;
     $args = [];
   }
+ elsif (ref $args && @$args==1 && ref $args->[0] eq 'HASH') {
+
+   $args = [ map { $_ => $args->{$_} } keys $args->[0] ];
+  }
   elsif (!ref $args) {
     $args = [$args];
   }
@@ -176,6 +192,7 @@ sub execute {
 
   my $mqueue = $self->{_message_queue} ||= [];
   my $cqueue = $self->{_cb_queue}      ||= [];
+
 
 
   push @$mqueue, $args;
@@ -201,22 +218,6 @@ sub stop {
   return $self;
 }
 
-sub _create_protocol {
-  my $self = shift;
-
-  my $protocol = $self->protocol_redis->new(api => 1);
-  $protocol->on_message(
-    sub {
-      my ($parser, $command) = @_;
-      $self->_return_command_data($command);
-    }
-  );
-
-  Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/)
-    unless $protocol;
-
-  $protocol;
-}
 
 sub _send_next_message {
   my ($self) = @_;
@@ -230,7 +231,7 @@ sub _send_next_message {
           if $self->encoding;
         push @$cmd_arg, {type => '$', data => $token};
       }
-      my $message = $self->{_protocol}->encode($cmd);
+      my $message = $self->protocol->encode($cmd);
 
       $self->ioloop->stream($id)->write($message);
     }
