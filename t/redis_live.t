@@ -18,7 +18,7 @@ my $redis =
   new_ok 'Mojo::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
 
 my $errors = 0;
-$redis->on_error(sub { $errors++ });
+$redis->on(error => sub { $errors++ });
 
 $redis->execute(
     ping => sub {
@@ -28,7 +28,7 @@ $redis->execute(
 
 $redis->execute(
     qwe => sub {
-        is $_, undef, 'Uknown command result';
+        is $_[1], undef, 'Uknown command result';
         is $redis->error, q|ERR unknown command 'QWE'|,
           'Unknown command message';
         is $errors, 1, 'on_error works';

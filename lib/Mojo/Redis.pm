@@ -1,10 +1,7 @@
 package Mojo::Redis;
 
-use strict;
-use warnings;
-
 our $VERSION = 0.9;
-use Mojo::Base -base;
+use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
 use List::Util   ();
@@ -17,12 +14,6 @@ has ioloop   => sub { Mojo::IOLoop->singleton };
 has error    => undef;
 has timeout  =>  10;
 has encoding => 'UTF-8';
-has on_error => sub {
-    sub {
-      my $redis = shift;
-      warn "Redis error: ", $redis->error, "\n";
-      }
-};
 
 has protocol_redis => sub {
     require Protocol::Redis;
@@ -147,11 +138,10 @@ sub connect {
           $self->error($error);
           $self->_inform_queue;
 
-          $self->on_error->($self);
+          $self->emit_safe(error => $error);
           $self->ioloop->remove($self->{_connection});
         }
       );
-
     }
   );
 
@@ -236,7 +226,7 @@ sub _reencode_message {
 
   if ($type eq '-') {
     $self->error($data);
-    $self->on_error->($self);
+    $self->emit_safe(error => $data);
     return;
   }
   elsif ($type ne '*') {
@@ -273,6 +263,13 @@ sub _inform_queue {
   }
   $self->{_queue} = [];
 }
+
+# avoid pod test
+*on_error = sub {
+    my $self = shift;
+    warn "on_error() is deprecated! use on(error => sub {}) instead";
+    $self->on(error => shift);
+};
 
 1;
 __END__
@@ -352,6 +349,19 @@ application.
 =head1 DESCRIPTION
 
 L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
+
+=head1 EVENTS
+
+=head2 error
+
+    $redis->on(error => sub{
+        my $redis = shift;
+        warn 'Redis error ', $redis->error, "\n";
+    });
+
+Executes if error occured. Called before commands callbacks.
+
+
 
 =head1 ATTRIBUTES
 
@@ -439,15 +449,6 @@ $redis->error.
 Returns error occured during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
-
-=head2 C<on_error>
-
-    $redis->on_error(sub{
-        my $redis = shift;
-        warn 'Redis error ', $redis->error, "\n";
-    });
-
-Executes if error occured. Called before commands callbacks.
 
 =head2 C<start>
 
