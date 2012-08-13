@@ -291,11 +291,15 @@ sub _reencode_message {
 
 sub _return_command_data {
   my ($self, $message) = @_;
-
   my $data = $self->_reencode_message($message);
-
   my $cb = shift @{$self->{_cb_queue}};
-  $cb->($self, $data) if $cb;
+
+  eval {
+    $self->$cb($data) if $cb;
+    1;
+  } or do {
+    $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
+  };
 
   # Reset error after callback dispatching
   $self->error(undef);
@@ -306,8 +310,14 @@ sub _inform_queue {
   my ($self) = @_;
 
   for my $cb (@{$self->{_cb_queue}}) {
-    $cb->($self) if $cb;
+    eval {
+      $self->$cb if $cb;
+      1;
+    } or do {
+      $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
+    };
   }
+
   $self->{_queue} = [];
 }
 
@@ -407,8 +417,6 @@ L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
     });
 
 Executes if error occured. Called before commands callbacks.
-
-
 
 =head1 ATTRIBUTES
 
