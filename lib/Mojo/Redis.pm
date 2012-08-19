@@ -53,9 +53,8 @@ for my $cmd (qw/
 /) {
   eval(
     "sub $cmd {"
-   .'my $cb = ref $_[-1] eq q(CODE) ? pop : undef;'
    .'my $self = shift;'
-   ."\$self->execute($cmd => [\@_], \$cb); } 1;"
+   ."\$self->execute($cmd => \@_) } 1;"
   ) or die $@;
 }
 
@@ -85,7 +84,6 @@ sub connect {
 
   Scalar::Util::weaken $self;
 
-
   # connect
   $self->{_connecting} = 1;
   $self->{_connection} = $self->ioloop->client(
@@ -113,7 +111,6 @@ sub connect {
           $self->_inform_queue;
 
           delete $self->{_message_queue};
-
           delete $self->{_connecting};
           delete $self->{_connection};
         }
@@ -212,29 +209,43 @@ sub subscribe {
 }
 
 sub execute {
-  my ($self, $command, $args, $cb) = @_;
+  my ($self, @commands) = @_;
+  my($cb, $process);
 
-  if (!$cb && ref $args eq 'CODE') {
-    $cb   = $args;
-    $args = [];
+  if (ref $commands[-1] eq 'CODE') {
+    $cb = pop @commands;
   }
-  elsif (ref $args && @$args == 1 && ref $args->[0] eq 'HASH') {
-
-    $args = [map { $_ => $args->{$_} } keys $args->[0]];
-  }
-  elsif (!ref $args) {
-    $args = [$args];
+  if (ref $commands[0] ne 'ARRAY') {
+    @commands = ([@commands]);
   }
 
-  unshift @$args, uc $command;
+  for my $cmd (@commands) {
+    $cmd->[0] = uc $cmd->[0];
+    if(ref $cmd->[-1] eq 'HASH') {
+        splice @$cmd, -1, 1, map { $_ => $cmd->[-1]{$_} } keys %{ $cmd->[-1] };
+    }
+  }
 
   my $mqueue = $self->{_message_queue} ||= [];
   my $cqueue = $self->{_cb_queue}      ||= [];
 
+  if($cb and 1 < @commands) {
+    my(@res, $n);
+    my $process = sub {
+      push @res, $_[1];
+      $_[0]->$cb(@res) unless --$n;
+    };
+    $n = @commands;
+    push @$cqueue, ($process) x $n;
+  }
+  elsif($cb) {
+    push @$cqueue, $cb;
+  }
+  else {
+    push @$cqueue, sub {};
+  }
 
-  push @$mqueue, $args;
-  push @$cqueue, $cb;
-
+  push @$mqueue, @commands;
   $self->connect unless $self->{_connection};
   $self->_send_next_message;
 
@@ -263,7 +274,6 @@ sub _send_next_message {
 
 sub _reencode_message {
   my ($self, $message) = @_;
-
   my ($type, $data) = @{$message}{'type', 'data'};
 
   # Decode data
@@ -482,13 +492,22 @@ Connect to C<Redis> server.
 
 =head2 C<execute>
 
-    $redis = $redis->execute("ping" => sub{
+    $redis = $redis->execute("ping" => sub {
         my ($redis, $result) = @_;
 
         # Process result
     });
-    $redis->execute(lrange => ["test", 0, -1] => sub {...});
-    $redis->execute(set => [test => "test_ok"]);
+    $redis->execute(lrange => "test", 0, -1 => sub {...});
+    $redis->execute(set => test => "test_ok");
+    $redis->execute(
+        [lrange => "test", 0, -1],
+        [get => "test"],
+        [hmset => foo => { one => 1, two => 2 }],
+        sub {
+            my($redis, $get, $lrange, $hmset) = @_;
+            # ...
+        },
+    );
 
 Execute specified command on C<Redis> server. If error occured during
 request $result will be set to undef, error string can be obtained with 
