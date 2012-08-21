@@ -189,7 +189,7 @@ sub subscribe {
           my ($str, $error) = @_;
           $self->error($error);
 
-          $self->on_error->($self);
+          $self->emit(error => $error);
           $self->ioloop->remove($id);
         }
       );
@@ -330,13 +330,6 @@ sub _inform_queue {
 
   $self->{_queue} = [];
 }
-
-# avoid pod test
-*on_error = sub {
-    my $self = shift;
-    warn "on_error() is deprecated! use on(error => sub {}) instead";
-    $self->on(error => shift);
-};
 
 1;
 __END__
