@@ -39,6 +39,6 @@ $redis->subscribe(
     }
 );
 
-$redis->execute('publish',['foo', 'shoo']);
+$redis->execute(['publish','foo', 'shoo']);
 $redis->publish('bar', 'once mo')->ioloop->start;
 
