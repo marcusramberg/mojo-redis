@@ -26,4 +26,4 @@ $redis->del('test')->multi->rpush(test => 'ok')->lrange(test => 0, -1)->exec(
     }
 )->ioloop->start;
 
-is_deeply $result, [1, ['ok']];
+is_deeply $result, [1, ['ok']], 'got lrange result';

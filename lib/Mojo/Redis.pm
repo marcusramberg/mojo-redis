@@ -229,17 +229,14 @@ sub execute {
   my $mqueue = $self->{_message_queue} ||= [];
   my $cqueue = $self->{_cb_queue}      ||= [];
 
-  if($cb and 1 < @commands) {
-    my(@res, $n);
+  if($cb) {
+    my @res;
     my $process = sub {
-      push @res, $_[1];
-      $_[0]->$cb(@res) unless --$n;
+      my $command = shift @commands;
+      push @res, $command->[0] eq 'HGETALL' ? { @{ $_[1] } } : $_[1];
+      $_[0]->$cb(@res) unless @commands;
     };
-    $n = @commands;
-    push @$cqueue, ($process) x $n;
-  }
-  elsif($cb) {
-    push @$cqueue, $cb;
+    push @$cqueue, ($process) x int @commands;
   }
   else {
     push @$cqueue, sub {};
