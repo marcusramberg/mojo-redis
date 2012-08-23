@@ -10,7 +10,7 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 21;
+plan tests => 22;
 
 use_ok 'Mojo::Redis';
 
@@ -93,16 +93,20 @@ $redis->execute(
     [rpush => "test", 123],
     [lrange => "test", 0, 1],
     [hmset => foo => { one => 1, two => 2 }],
-    [hmget => foo => 'one'],
+    [hgetall => 'foo'],
     sub {
-        my($redis, $del, $rpush, $lrange, $hmset, $hmget) = @_;
+        my($redis, $del, $rpush, $lrange, $hmset, $hgetall) = @_;
         is $del, 1, 'got del result';
         is $rpush, '1', 'got rpush result';
         is_deeply $lrange, [123], 'got lrange result';
         is $hmset, 'OK', 'got hmset result';
-        is_deeply $hmget, ['1'], 'got hmget result';
+        is_deeply $hgetall, { one => 1, two => 2 }, 'got hgetall result as hash ref';
     },
 );
+
+$redis->hgetall(foo => sub {
+    is_deeply $_[1], { one => 1, two => 2 }, 'hgetall() result as hash ref';
+});
 
 $redis->quit(sub { shift->ioloop->stop; })->ioloop->start;
 is int(@errors), 1, 'no more errors detected' or diag join '|', @errors;
