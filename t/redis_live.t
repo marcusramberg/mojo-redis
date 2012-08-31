@@ -82,6 +82,9 @@ $redis->execute(
     }
 );
 
+$redis->del('test') for 1..5;
+$redis->execute(set => test => 1) for 1..5;
+$redis->execute([set => test => 1], [set => test => 1]) for 1..3;
 $redis->set(test => 'ok')->get(
     test => sub {
         is $_[1], 'ok', "Fast command check";
