@@ -239,7 +239,7 @@ sub execute {
     push @$cqueue, ($process) x int @commands;
   }
   else {
-    push @$cqueue, sub {};
+    push @$cqueue, (sub {}) x int @commands;
   }
 
   push @$mqueue, @commands;
