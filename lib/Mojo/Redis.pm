@@ -319,7 +319,7 @@ sub _return_command_data {
   } or do {
     my $err=$@;
     warn "Failed with $err";
-    $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $@;
+    $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
   };
 
   # Reset error after callback dispatching
@@ -336,7 +336,8 @@ sub _inform_queue {
       $self->$cb if $cb;
       1;
     } or do {
-      $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
+      my $err=$@
+      $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
     };
   }
 
