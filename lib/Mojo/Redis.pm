@@ -313,6 +313,7 @@ sub _return_command_data {
   my $data = $self->_reencode_message($message);
   my $cb = shift @{$self->{_cb_queue}};
 
+  local $@;
   eval {
     $self->$cb($data) if $cb;
     1;
@@ -329,6 +330,7 @@ sub _inform_queue {
   my ($self) = @_;
 
   for my $cb (@{$self->{_cb_queue}}) {
+    local $@;
     eval {
       $self->$cb if $cb;
       1;
