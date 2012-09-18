@@ -313,12 +313,13 @@ sub _return_command_data {
   my $data = $self->_reencode_message($message);
   my $cb = shift @{$self->{_cb_queue}};
 
-  local $@;
   eval {
     $self->$cb($data) if $cb;
     1;
   } or do {
-    $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
+    my $err=$@;
+    warn "Failed with $err";
+    $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $@;
   };
 
   # Reset error after callback dispatching
