@@ -336,7 +336,7 @@ sub _inform_queue {
       $self->$cb if $cb;
       1;
     } or do {
-      my $err=$@
+      my $err=$@;
       $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
     };
   }
