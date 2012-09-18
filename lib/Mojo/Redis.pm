@@ -536,6 +536,256 @@ Returns error occured during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
 
+=head1 REDIS METHODS
+
+=head2 append
+
+=head2 auth
+
+=head2 bgrewriteaof
+
+=head2 bgsave
+
+=head2 blpop
+
+=head2 brpop
+
+=head2 brpoplpush
+
+=head2 config_get
+
+=head2 config_resetstat
+
+=head2 config_set
+
+=head2 connected
+
+=head2 dbsize
+
+=head2 debug_object
+
+=head2 debug_segfault
+
+=head2 decr
+
+=head2 decrby
+
+=head2 del
+
+=head2 discard
+
+=head2 disconnect
+
+=head2 echo
+
+=head2 exec
+
+=head2 exists
+
+=head2 expire
+
+=head2 expireat
+
+=head2 flushall
+
+=head2 flushdb
+
+=head2 get
+
+=head2 getbit
+
+=head2 getrange
+
+=head2 getset
+
+=head2 hdel
+
+=head2 hexists
+
+=head2 hget
+
+=head2 hgetall
+
+=head2 hincrby
+
+=head2 hkeys
+
+=head2 hlen
+
+=head2 hmget
+
+=head2 hmset
+
+=head2 hset
+
+=head2 hsetnx
+
+=head2 hvals
+
+=head2 incr
+
+=head2 incrby
+
+=head2 info
+
+=head2 keys
+
+=head2 lastsave
+
+=head2 lindex
+
+=head2 linsert
+
+=head2 llen
+
+=head2 lpop
+
+=head2 lpush
+
+=head2 lpushx
+
+=head2 lrange
+
+=head2 lrem
+
+=head2 lset
+
+=head2 ltrim
+
+=head2 mget
+
+=head2 monitor
+
+=head2 move
+
+=head2 mset
+
+=head2 msetnx
+
+=head2 multi
+
+=head2 persist
+
+=head2 ping
+
+=head2 protocol
+
+=head2 psubscribe
+
+=head2 publish
+
+=head2 punsubscribe
+
+=head2 quit
+
+=head2 randomkey
+
+=head2 rename
+
+=head2 renamenx
+
+=head2 rpop
+
+=head2 rpoplpush
+
+=head2 rpush
+
+=head2 rpushx
+
+=head2 sadd
+
+=head2 save
+
+=head2 scard
+
+=head2 sdiff
+
+=head2 sdiffstore
+
+=head2 select
+
+=head2 set
+
+=head2 setbit
+
+=head2 setex
+
+=head2 setnx
+
+=head2 setrange
+
+=head2 shutdown
+
+=head2 sinter
+
+=head2 sinterstore
+
+=head2 sismember
+
+=head2 slaveof
+
+=head2 smembers
+
+=head2 smove
+
+=head2 sort
+
+=head2 spop
+
+=head2 srandmember
+
+=head2 srem
+
+=head2 strlen
+
+=head2 sunion
+
+=head2 sunionstore
+
+=head2 sync
+
+=head2 ttl
+
+=head2 type
+
+=head2 unsubscribe
+
+=head2 unwatch
+
+=head2 watch
+
+=head2 zadd
+
+=head2 zcard
+
+=head2 zcount
+
+=head2 zincrby
+
+=head2 zinterstore
+
+=head2 zrange
+
+=head2 zrangebyscore
+
+=head2 zrank
+
+=head2 zrem
+
+=head2 zremrangebyrank
+
+=head2 zremrangebyscore
+
+=head2 zrevrange
+
+=head2 zrevrangebyscore
+
+=head2 zrevrank
+
+=head2 zscore
+
+=head2 zunionstore
+
 =head1 SEE ALSO
 
 L<Protocol::Redis>, L<Mojolicious>, L<Mojo::IOLoop>
