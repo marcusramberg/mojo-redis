@@ -91,8 +91,14 @@ sub connect {
       port    => $port
     },
     sub {
-      my ($loop, $err, $stream) = @_;
+      my ($loop, $error, $stream) = @_;
 
+      if($error) {
+          $self->{error} = $error;
+          $self->_inform_queue;
+          $self->emit_safe(error => $error);
+          return;
+      }
 
       delete $self->{_connecting};
       $stream->timeout($self->timeout);
@@ -168,7 +174,13 @@ sub subscribe {
       port    => $port
     },
     sub {
-      my ($loop, $err, $stream) = @_;
+      my ($loop, $error, $stream) = @_;
+
+      if($error) {
+          $self->{error} = $error;
+          $self->emit(error => $error);
+          return;
+      }
 
       $stream->timeout($self->timeout);
 
