@@ -311,7 +311,9 @@ sub _return_command_data {
     $self->$cb($data) if $cb;
     1;
   } or do {
-    $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
+    my $err=$@;
+    warn "Failed with $err";
+    $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
   };
 }
 
@@ -324,7 +326,8 @@ sub _inform_queue {
       $self->$cb if $cb;
       1;
     } or do {
-      $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
+      my $err=$@;
+      $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
     };
   }
 
