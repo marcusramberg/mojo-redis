@@ -19,6 +19,7 @@ my $redis =
 
 my $errors = 0;
 $redis->on(error => sub { $errors++ });
+$redis->select(14);
 
 my $cb=0;
 use Data::Dumper;

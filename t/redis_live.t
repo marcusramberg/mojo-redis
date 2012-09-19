@@ -14,11 +14,12 @@ plan tests => 22;
 
 use_ok 'Mojo::Redis';
 
-my $redis =
-  new_ok 'Mojo::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
+my $redis = new_ok 'Mojo::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
 
 my @errors;
 $redis->on(error => sub { push @errors, $_[1] });
+$redis->select(14);
+
 
 $redis->execute(
     ping => sub {
@@ -26,10 +27,13 @@ $redis->execute(
     }
 );
 
+$redis->once(error => sub {
+    is $_[1], q|ERR unknown command 'QWE'|,
+});
+
 $redis->execute(
     qwe => sub {
         is $_[1], undef, 'Uknown command result';
-        is $redis->error, q|ERR unknown command 'QWE'|,
           'Unknown command message';
         is int(@errors), 1, 'on_error works';
     }

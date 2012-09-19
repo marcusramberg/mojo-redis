@@ -21,6 +21,7 @@ plan tests => 4;
 my $redis = Mojo::Redis->new(server => $ENV{REDIS_SERVER}, timeout => 5);
 
 $redis->on(error => sub {});
+$redis->select(14);
 
 no_leaks_ok {
     $redis->ping(\&cb_ioloop_stop)->ioloop->start;

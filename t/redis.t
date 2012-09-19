@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use lib 'lib';
 
-use Test::More tests => 11;
+use Test::More tests => 10;
 
 use Mojo::IOLoop;
 
@@ -18,7 +18,6 @@ my $port = Mojo::IOLoop->generate_port;
 
 my ($sbuffer1, $sbuffer2, $sbuffer3);
 my ($r, $r1, $r2, $r4);
-my $redis_error;
 my $curr_stream;
 
 $r4 = 'wrong result';
@@ -80,7 +79,6 @@ is $sbuffer3, "*3\r\n\$3\r\nSET\r\n\$3\r\nkey\r\n\$5\r\nvalue\r\n",
   'fast command';
 
 is $r4,          undef,          'error result';
-is $redis_error, 'disconnected', 'redis error message';
 
 # Multiple pipelined commands
 sub test2 {
@@ -165,7 +163,6 @@ sub check4 {
         sub {
             my ($redis, $result) = @_;
             $r4          = $result;
-            $redis_error = $redis->error;
             Mojo::IOLoop->stop;
 
         }

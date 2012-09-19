@@ -10,7 +10,6 @@ require Carp;
 
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
-has error    => undef;
 has timeout  => 10;
 has encoding => 'UTF-8';
 
@@ -94,7 +93,6 @@ sub connect {
       my ($loop, $error, $stream) = @_;
 
       if($error) {
-          $self->{error} = $error;
           $self->_inform_queue;
           $self->emit_safe(error => $error);
           return;
@@ -113,7 +111,6 @@ sub connect {
       $stream->on(
         close => sub {
           my $str = shift;
-          $self->{error} ||= 'disconnected';
           $self->_inform_queue;
 
           delete $self->{_message_queue};
@@ -124,8 +121,8 @@ sub connect {
       $stream->on(
         error => sub {
           my ($str, $error) = @_;
-          $self->error($error);
           $self->_inform_queue;
+          $self->emit_safe(error => $error);
 
           $self->emit_safe(error => $error);
           $self->ioloop->remove($self->{_connection});
@@ -199,8 +196,6 @@ sub subscribe {
       $stream->on(
         error => sub {
           my ($str, $error) = @_;
-          $self->error($error);
-
           $self->emit(error => $error);
           $self->ioloop->remove($id);
         }
@@ -291,7 +286,6 @@ sub _reencode_message {
   }
 
   if ($type eq '-') {
-    $self->error($data);
     $self->emit_safe(error => $data);
     return;
   }
@@ -313,16 +307,12 @@ sub _return_command_data {
   my $data = $self->_reencode_message($message);
   my $cb = shift @{$self->{_cb_queue}};
 
-  local $@;
   eval {
     $self->$cb($data) if $cb;
     1;
   } or do {
     $self->has_subscribers('error') ? $self->emit_safe(error => $@) : warn $@;
   };
-
-  # Reset error after callback dispatching
-  $self->error(undef);
 }
 
 
@@ -330,7 +320,6 @@ sub _inform_queue {
   my ($self) = @_;
 
   for my $cb (@{$self->{_cb_queue}}) {
-    local $@;
     eval {
       $self->$cb if $cb;
       1;
@@ -362,9 +351,6 @@ Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
 
             if (defined $res) {
                 print "Got result: ", $res->[0], "\n";
-            }
-            else {
-                print "Error: ", $redis->error, "\n";
             }
         }
     );
@@ -405,9 +391,6 @@ application.
                 my ($redis, $result) = @_;
 
                 $redis->quit->ioloop->stop;
-
-                return app->log->error($redis->error) unless $result;
-
                 $value = $result->[0];
             }
         )->ioloop->start;
@@ -426,8 +409,8 @@ L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
 =head2 error
 
     $redis->on(error => sub{
-        my $redis = shift;
-        warn 'Redis error ', $redis->error, "\n";
+        my($redis, $error) = @_;
+        warn "[REDIS ERROR] $error\n";
     });
 
 Executes if error occured. Called before commands callbacks.
@@ -515,7 +498,7 @@ Connect to C<Redis> server.
 
 Execute specified command on C<Redis> server. If error occured during
 request $result will be set to undef, error string can be obtained with 
-$redis->error.
+the L</error> event.
 
 =head2 C<subscribe>
 
@@ -526,17 +509,6 @@ $redis->error.
 
 Opens up a new connection that subscribes to the given pubsub channels
 returns the id of the connection in the L<Mojo::IOLoop>.
-
-=head2 C<error>
-
-    $redis->execute("ping" => sub {
-        my ($redis, $result) = @_;
-        die $redis->error unless defined $result;
-    });
-
-Returns error occured during command execution.
-Note that this method returns error code just from current command and
-can be used just in callback.
 
 =head1 REDIS METHODS
 
