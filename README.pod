@@ -146,7 +146,7 @@ Connect to C<Redis> server.
     $redis->execute(lrange => ["test", 0, -1] => sub {...});
     $redis->execute(set => [test => "test_ok"]);
 
-Execute specified command on C<Redis> server. If error occured during
+Execute specified command on C<Redis> server. If error occurred during
 request $result will be set to undef, error string can be obtained with 
 $redis->error.
 
@@ -157,7 +157,7 @@ $redis->error.
         die $redis->error unless defined $result;
     });
 
-Returns error occured during command execution.
+Returns error occurred during command execution.
 Note that this method returns error code just from current command and
 can be used just in callback.
 
@@ -168,7 +168,7 @@ can be used just in callback.
         warn 'Redis error ', $redis->error, "\n";
     });
 
-Executes if error occured. Called before commands callbacks.
+Executes if error occurred. Called before commands callbacks.
 
 =head2 C<start>
 
