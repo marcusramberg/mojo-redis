@@ -385,7 +385,7 @@ application.
     get '/' => sub {
         my $self = shift;
 
-        my $redis = mojo::redis->new(ioloop => mojo::ioloop->new);
+        my $redis = Mojo::Redis->new(ioloop => Mojo::IOLoop->new);
 
         my $value;
 
@@ -494,7 +494,7 @@ Connect to C<Redis> server.
         [get => "test"],
         [hmset => foo => { one => 1, two => 2 }],
         sub {
-            my($redis, $get, $lrange, $hmset) = @_;
+            my($redis, $lrange, $get, $hmset) = @_;
             # ...
         },
     );
