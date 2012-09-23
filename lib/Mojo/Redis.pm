@@ -385,7 +385,7 @@ application.
     get '/' => sub {
         my $self = shift;
 
-        my $redis = mojo::redis->new(ioloop => mojo::ioloop->new);
+        my $redis = Mojo::Redis->new(ioloop => Mojo::IOLoop->new);
 
         my $value;
 
@@ -416,7 +416,7 @@ L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
         warn "[REDIS ERROR] $error\n";
     });
 
-Executes if error occured. Called before commands callbacks.
+Executes if error occurred. Called before commands callbacks.
 
 =head1 ATTRIBUTES
 
@@ -494,12 +494,12 @@ Connect to C<Redis> server.
         [get => "test"],
         [hmset => foo => { one => 1, two => 2 }],
         sub {
-            my($redis, $get, $lrange, $hmset) = @_;
+            my($redis, $lrange, $get, $hmset) = @_;
             # ...
         },
     );
 
-Execute specified command on C<Redis> server. If error occured during
+Execute specified command on C<Redis> server. If error occurred during
 request $result will be set to undef, error string can be obtained with 
 the L</error> event.
 
