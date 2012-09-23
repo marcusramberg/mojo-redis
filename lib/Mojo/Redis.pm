@@ -65,7 +65,7 @@ sub DESTROY {
 
   # Cleanup connection
   for my $id ($self->{_connection}, values %{ $self->{_ids} || {} }) {
-    $loop->remove($id)
+    $loop->remove($id) if $id;
   }
 
   delete $self->{_connection};
