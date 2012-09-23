@@ -35,6 +35,8 @@ has protocol => sub {
   $protocol;
 };
 
+sub connected { $_[0]->{_connection} ? 1 : 0 }
+
 for my $cmd (qw/
   append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
   config_resetstat dbsize debug_object debug_segfault decr decrby del discard
@@ -59,13 +61,15 @@ for my $cmd (qw/
 
 sub DESTROY {
   my $self = shift;
-
-  # Loop
-  return unless my $loop = $self->ioloop;
+  my $loop = $self->ioloop;
 
   # Cleanup connection
-  $loop->remove($self->{_connection})
-    if $self->{_connection};
+  for my $id ($self->{_connection}, values %{ $self->{_ids} || {} }) {
+    $loop->remove($id)
+  }
+
+  delete $self->{_connection};
+  delete $self->{_ids};
 }
 
 
@@ -77,17 +81,12 @@ sub connect {
     $self->ioloop->remove($self->{_connection});
   }
 
-  $self->server =~ m{^([^:]+)(:(\d+))?};
-  my $address = $1;
-  my $port = $3 || 6379;
-
   Scalar::Util::weaken $self;
-
-  # connect
+  $self->server =~ m{^([^:]+)(?::(\d+))?};
   $self->{_connecting} = 1;
   $self->{_connection} = $self->ioloop->client(
-    { address => $address,
-      port    => $port
+    { address => $1,
+      port    => $2 || 6379,
     },
     sub {
       my ($loop, $error, $stream) = @_;
@@ -98,22 +97,12 @@ sub connect {
           return;
       }
 
-      delete $self->{_connecting};
       $stream->timeout($self->timeout);
-      $self->_send_next_message;
-
-      $stream->on(
-        read => sub {
-          my ($stream, $chunk) = @_;
-          $self->protocol->parse($chunk);
-        }
-      );
+      $stream->on(read => sub { $self->protocol->parse($_[1]) });
       $stream->on(
         close => sub {
-          my $str = shift;
           $self->_inform_queue;
           $self->emit('close');
-
           delete $self->{_message_queue};
           delete $self->{_connecting};
           delete $self->{_connection};
@@ -121,14 +110,14 @@ sub connect {
       );
       $stream->on(
         error => sub {
-          my ($str, $error) = @_;
           $self->_inform_queue;
-          $self->emit_safe(error => $error);
-
-          $self->emit_safe(error => $error);
+          $self->emit_safe(error => $_[1]);
           $self->ioloop->remove($self->{_connection});
         }
       );
+
+      delete $self->{_connecting};
+      $self->_send_next_message;
     }
   );
 
@@ -142,77 +131,63 @@ sub disconnect {
   if ($self->connected) {
     $self->ioloop->remove($self->{_connection});
   }
-}
 
-sub connected {
-  my $self = shift;
-
-  return $self->{_connection};
+  $self;
 }
 
 sub subscribe {
-  my $cb = pop @_;
   my ($self, @channels) = @_;
   my $protocol = $self->protocol_redis->new(api => 1);
+  my $cb = pop @channels;
+  my $id;
+
   $protocol->on_message(
     sub {
       my ($parser, $message) = @_;
       my $data = $self->_reencode_message($message);
-      $cb->($self, $data) if $cb;
+      $self->$cb($data);
     }
   );
 
-  $self->server =~ m{^([^:]+)(:(\d+))?};
-  my $address = $1;
-  my $port = $3 || 6379;
-
-  my $id;
+  Scalar::Util::weaken $self;
+  $self->server =~ m{^([^:]+)(?::(\d+))?};
   $id = $self->ioloop->client(
-    { address => $address,
-      port    => $port
+    { address => $1,
+      port    => $2 || 6379,
     },
     sub {
       my ($loop, $error, $stream) = @_;
+      my @tokens = ('subscribe', @channels);
+      my $cmd_arg = [];
 
-      if($error) {
-          $self->{error} = $error;
-          $self->emit(error => $error);
-          return;
-      }
-
+      $error and return $self->emit(error => $error);
       $stream->timeout($self->timeout);
-
-      $stream->on(
-        read => sub {
-          my ($stream, $chunk) = @_;
-          $protocol->parse($chunk);
-        }
-      );
-      $stream->on(
-        close => sub {
+      $stream->on(read => sub { $protocol->parse($_[1]) });
+      $stream->on(close =>
+        sub {
           $self->emit('close');
+          delete $self->{_ids}{$id};
         }
       );
-      $stream->on(
-        error => sub {
-          my ($str, $error) = @_;
-          $self->emit(error => $error);
+      $stream->on(error =>
+        sub {
+          $self->emit(error => $_[1]);
           $self->ioloop->remove($id);
         }
       );
-      my $cmd_arg = [];
-      my $cmd     = {type => '*', data => $cmd_arg};
-      my @args    = ('subscribe', @channels);
-      foreach my $token (@args) {
+
+      foreach my $token (@tokens) {
         $token = Encode::encode($self->encoding, $token)
           if $self->encoding;
         push @$cmd_arg, {type => '$', data => $token};
       }
-      my $message = $self->protocol->encode($cmd);
 
-      $stream->write($message);
+      $stream->write($protocol->encode({ type => '*', data => $cmd_arg }));
     }
   );
+
+  $self->{_ids}{$id} = 1;
+  $self;
 }
 
 sub execute {
@@ -258,23 +233,24 @@ sub execute {
 
 sub _send_next_message {
   my ($self) = @_;
+  my $id = $self->{_connection} or return;
+  my $stream = $self->ioloop->stream($id);
+  my $protocol = $self->protocol;
 
-  if ((my $id = $self->{_connection}) && !$self->{_connecting}) {
-    while (my $args = shift @{$self->{_message_queue}}) {
-      my $cmd_arg = [];
-      my $cmd = {type => '*', data => $cmd_arg};
-      foreach my $token (@$args) {
-        $token = Encode::encode($self->encoding, $token)
-          if $self->encoding;
-        push @$cmd_arg, {type => '$', data => $token};
-      }
-      my $message = $self->protocol->encode($cmd);
+  $self->{_connecting} and return;
 
-      $self->ioloop->stream($id)->write($message);
+  while (my $args = shift @{$self->{_message_queue}}) {
+    my $cmd_arg = [];
+
+    foreach my $token (@$args) {
+      $token = Encode::encode($self->encoding, $token)
+        if $self->encoding;
+      push @$cmd_arg, {type => '$', data => $token};
     }
+
+    $stream->write($protocol->encode({ type => '*', data => $cmd_arg }));
   }
 }
-
 
 sub _reencode_message {
   my ($self, $message) = @_;
@@ -430,14 +406,14 @@ Emitted when the connection to the server gets closed.
 
 L<Mojo::Redis> implements the following attributes.
 
-=head2 C<server>
+=head2 server
 
     my $server = $redis->server;
     $redis     = $redis->server('127.0.0.1:6379');
 
 C<Redis> server connection string, defaults to '127.0.0.1:6379'.
 
-=head2 C<ioloop>
+=head2 ioloop
 
     my $ioloop = $redis->ioloop;
     $redis     = $redis->ioloop(Mojo::IOLoop->new);
@@ -445,7 +421,7 @@ C<Redis> server connection string, defaults to '127.0.0.1:6379'.
 Loop object to use for io operations, by default a L<Mojo::IOLoop> singleton
 object will be used.
 
-=head2 C<timeout>
+=head2 timeout
 
     my $timeout = $redis->timeout;
     $redis      = $redis->timeout(100);
@@ -453,14 +429,14 @@ object will be used.
 Maximum amount of time in seconds a connection can be inactive before being
 dropped, defaults to C<300>.
 
-=head2 C<encoding>
+=head2 encoding
 
     my $encoding = $redis->encoding;
     $redis       = $redis->encoding('UTF-8');
 
 Encoding used for stored data, defaults to C<UTF-8>.
 
-=head2 C<protocol_redis>
+=head2 protocol_redis
 
     use Protocol::Redis::XS;
     $redis->protocol_redis("Protocol::Redis::XS");
@@ -482,13 +458,13 @@ For more details take a look at C<execute> method.
 
 Also L<Mojo::Redis> implements the following ones.
 
-=head2 C<connect>
+=head2 connect
 
     $redis = $redis->connect;
 
 Connect to C<Redis> server.
 
-=head2 C<execute>
+=head2 execute
 
     $redis = $redis->execute("ping" => sub {
         my ($redis, $result) = @_;
@@ -511,7 +487,9 @@ Execute specified command on C<Redis> server. If error occurred during
 request $result will be set to undef, error string can be obtained with 
 the L</error> event.
 
-=head2 C<subscribe>
+=head1 REDIS METHODS
+
+=head2 subscribe
 
    $id = $redis->subscribe('foo','bar' => sub {
     my ($redis,$res)=@_;
@@ -520,8 +498,6 @@ the L</error> event.
 
 Opens up a new connection that subscribes to the given pubsub channels
 returns the id of the connection in the L<Mojo::IOLoop>.
-
-=head1 REDIS METHODS
 
 =head2 append
 

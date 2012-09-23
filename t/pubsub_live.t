@@ -18,28 +18,28 @@ my $redis =
   new_ok 'Mojo::Redis' => [server => $ENV{REDIS_SERVER}, timeout => 5];
 
 my $errors = 0;
-$redis->on(error => sub { $errors++ });
+$redis->on(error => sub { diag $_[1]; $errors++ });
 $redis->select(14);
 
 my $cb=0;
-use Data::Dumper;
 $redis->subscribe(
-    'foo','bar' => sub {
-        my ($redis,$res)=@_;
-        $cb++;
-        if($cb==1) {
-            is_deeply( $res, ['subscribe', 'foo', 1], "first" );
-        }
-        elsif($cb==2) {
-            is_deeply( $res, ['subscribe', 'bar', 2], "second" );
-        }
-        elsif($cb==3) {
-            is_deeply( $res, ['message', 'foo','shoo'], "third");
-             $redis->ioloop->stop;
-        }
+  'foo','bar' => sub {
+    my ($redis,$res)=@_;
+    diag @$res;
+    $cb++;
+    if($cb==1) {
+      is_deeply( $res, ['subscribe', 'foo', 1], "first" );
+      $redis->execute(['publish','foo', 'shoo']);
+      $redis->publish('bar', 'once mo');
     }
+    elsif($cb==2) {
+      is_deeply( $res, ['subscribe', 'bar', 2], "second" );
+    }
+    elsif($cb==3) {
+      is_deeply( $res, ['message', 'foo','shoo'], "third");
+      $redis->ioloop->stop;
+    }
+  }
 );
 
-$redis->execute(['publish','foo', 'shoo']);
-$redis->publish('bar', 'once mo')->ioloop->start;
-
+Mojo::IOLoop->start;
