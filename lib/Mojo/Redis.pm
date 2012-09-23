@@ -190,6 +190,16 @@ sub subscribe {
   $self;
 }
 
+sub subscribe_to_messages {
+  my $cb = pop @_;
+  my ($self, @channels) = @_;
+
+  $self->subscribe(@channels, sub {
+    my($self, $res) = @_;
+    $self->$cb(@$res[2, 1]) if $res->[0] eq 'message';
+  });
+}
+
 sub execute {
   my ($self, @commands) = @_;
   my($cb, $process);
@@ -498,6 +508,17 @@ the L</error> event.
 
 Opens up a new connection that subscribes to the given pubsub channels
 returns the id of the connection in the L<Mojo::IOLoop>.
+
+=head2 subscribe_to_messages
+
+   $redis->subscribe_to_messages(foo => sub {
+     my($redis, $message, $channel) = @_;
+   });
+
+This is the same as L</subscribe> but the callback will only be called on a
+message.
+
+=head1 REDIS METHODS
 
 =head2 append
 

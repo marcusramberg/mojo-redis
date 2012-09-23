@@ -34,7 +34,6 @@ $redis->once(error => sub {
 $redis->execute(
     qwe => sub {
         is $_[1], undef, 'Uknown command result';
-          'Unknown command message';
         is int(@errors), 1, 'on_error works';
     }
 );
