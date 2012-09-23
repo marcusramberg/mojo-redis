@@ -312,7 +312,6 @@ sub _return_command_data {
     1;
   } or do {
     my $err=$@;
-    warn "Failed with $err";
     $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
   };
 }
@@ -416,7 +415,7 @@ L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
         warn "[REDIS ERROR] $error\n";
     });
 
-Executes if error occurred. Called before commands callbacks.
+Emitted if error occurred. Called before commands callbacks.
 
 =head2 close
 
