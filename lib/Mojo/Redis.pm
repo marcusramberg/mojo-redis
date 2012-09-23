@@ -10,7 +10,6 @@ require Carp;
 
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
-has timeout  => 10;
 has encoding => 'UTF-8';
 
 has protocol_redis => sub {
@@ -36,6 +35,19 @@ has protocol => sub {
 };
 
 sub connected { $_[0]->{_connection} ? 1 : 0 }
+
+sub timeout {
+  return $_[0]->{timeout} unless @_ > 1;
+  my($self, $t) = @_;
+  my $loop = $self->ioloop;
+
+  for my $id ($self->{_connection}, keys %{ $self->{_ids} || {} }) {
+    $loop->stream($id)->timeout($t) if $id;
+  }
+
+  $self->{timeout} = $t;
+  $self;
+}
 
 for my $cmd (qw/
   append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
@@ -64,7 +76,7 @@ sub DESTROY {
   my $loop = $self->ioloop;
 
   # Cleanup connection
-  for my $id ($self->{_connection}, values %{ $self->{_ids} || {} }) {
+  for my $id ($self->{_connection}, keys %{ $self->{_ids} || {} }) {
     $loop->remove($id) if $id;
   }
 
