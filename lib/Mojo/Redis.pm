@@ -112,6 +112,7 @@ sub connect {
         close => sub {
           my $str = shift;
           $self->_inform_queue;
+          $self->emit('close');
 
           delete $self->{_message_queue};
           delete $self->{_connecting};
@@ -189,8 +190,7 @@ sub subscribe {
       );
       $stream->on(
         close => sub {
-          my $str = shift;
-          warn "subscription disconnected";
+          $self->emit('close');
         }
       );
       $stream->on(
@@ -417,6 +417,15 @@ L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
     });
 
 Executes if error occurred. Called before commands callbacks.
+
+=head2 close
+
+    $redis->on(close => sub{
+        my($redis) = @_;
+        warn "[REDIS DISCONNECT]\n";
+    });
+
+Emitted when the connection to the server gets closed.
 
 =head1 ATTRIBUTES
 
