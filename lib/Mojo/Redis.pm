@@ -73,7 +73,7 @@ for my $cmd (qw/
 
 sub DESTROY {
   my $self = shift;
-  my $loop = $self->ioloop;
+  my $loop = $self->ioloop or return; # Can be undef during global destruction
 
   # Cleanup connection
   for my $id ($self->{_connection}, keys %{ $self->{_ids} || {} }) {
