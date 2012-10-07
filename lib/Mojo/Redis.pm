@@ -237,7 +237,7 @@ sub execute {
     my @res;
     my $process = sub {
       my $command = shift @commands;
-      push @res, $command->[0] eq 'HGETALL' ? { @{ $_[1] } } : $_[1];
+      push @res, $command->[0] eq 'HGETALL' ? $_[1] ? { @{ $_[1] } } : undef : $_[1];
       $_[0]->$cb(@res) unless @commands;
     };
     push @$cqueue, ($process) x int @commands;
