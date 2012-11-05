@@ -122,6 +122,7 @@ sub connect {
       );
       $stream->on(
         error => sub {
+          $self or return; # $self may be undef during global destruction
           $self->_inform_queue;
           $self->emit_safe(error => $_[1]);
           $self->ioloop->remove($self->{_connection});
