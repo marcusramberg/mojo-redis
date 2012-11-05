@@ -26,8 +26,10 @@ binmode STDOUT, ':utf8'; # because of use utf8;
 
   Mojo::IOLoop->start;
 
-  $redis->subscribe(s1 => sub {
-    my($redis, $res) = @_;
+  my $s = $redis->subscribe('s1');
+
+  $s->on(data => sub {
+    my($s, $res) = @_;
     print "# ", join('|', @$res), "\n";
     $redis->publish(s1 => "data: $str") unless grep { /data:/ } @$res;
     if(grep { /data:/ } @$res) {

@@ -46,8 +46,8 @@ can_ok($redis, qw/
   echo exec exists expire expireat flushall flushdb get getbit getrange getset
   hdel hexists hget hgetall hincrby hkeys hlen hmget hmset hset hsetnx hvals
   incr incrby info keys lastsave lindex linsert llen lpop lpush lpushx lrange
-  lrem lset ltrim mget monitor move mset msetnx multi persist ping psubscribe
-  publish punsubscribe quit randomkey rename renamenx rpop rpoplpush rpush
+  lrem lset ltrim mget monitor move mset msetnx multi persist ping
+  publish quit randomkey rename renamenx rpop rpoplpush rpush
   rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
   setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
   spop srandmember srem strlen subscribe sunion sunionstore sync ttl type

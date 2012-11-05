@@ -4,9 +4,12 @@ our $VERSION = 0.9;
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
+use Mojo::Redis::Subscription;
 use Scalar::Util ();
 use Encode       ();
-require Carp;
+use Carp;
+use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
+use if DEBUG, 'Data::Dumper';
 
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
@@ -19,17 +22,15 @@ has protocol_redis => sub {
 
 has protocol => sub {
   my $self = shift;
-
   my $protocol = $self->protocol_redis->new(api => 1);
+
+  $protocol or Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/);
   $protocol->on_message(
     sub {
       my ($parser, $command) = @_;
       $self->_return_command_data($command);
     }
   );
-
-  Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/)
-    unless $protocol;
 
   $protocol;
 };
@@ -39,12 +40,9 @@ sub connected { $_[0]->{_connection} ? 1 : 0 }
 sub timeout {
   return $_[0]->{timeout} unless @_ > 1;
   my($self, $t) = @_;
-  my $loop = $self->ioloop;
+  my $id = $self->{_connection};
 
-  for my $id ($self->{_connection}, keys %{ $self->{_ids} || {} }) {
-    $loop->stream($id)->timeout($t) if $id;
-  }
-
+  $self->ioloop->stream($id)->timeout($t) if $id;
   $self->{timeout} = $t;
   $self;
 }
@@ -55,12 +53,12 @@ for my $cmd (qw/
   echo exec exists expire expireat flushall flushdb get getbit getrange getset
   hdel hexists hget hgetall hincrby hkeys hlen hmget hmset hset hsetnx hvals
   incr incrby info keys lastsave lindex linsert llen lpop lpush lpushx lrange
-  lrem lset ltrim mget monitor move mset msetnx multi persist ping psubscribe
-  publish punsubscribe quit randomkey rename renamenx rpop rpoplpush rpush
+  lrem lset ltrim mget monitor move mset msetnx multi persist ping
+  publish quit randomkey rename renamenx rpop rpoplpush rpush
   rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
   setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
   spop srandmember srem strlen sunion sunionstore sync ttl type
-  unsubscribe unwatch watch zadd zcard zcount zincrby zinterstore zrange
+  unwatch watch zadd zcard zcount zincrby zinterstore zrange
   zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
   zrevrangebyscore zrevrank zscore zunionstore
 /) {
@@ -72,28 +70,16 @@ for my $cmd (qw/
 }
 
 sub DESTROY {
-  my $self = shift;
-  my $loop = $self->ioloop or return; # Can be undef during global destruction
-
-  # Cleanup connection
-  for my $id ($self->{_connection}, keys %{ $self->{_ids} || {} }) {
-    $loop->remove($id) if $id;
-  }
-
-  delete $self->{_connection};
-  delete $self->{_ids};
+  $_[0]->ioloop or return; # may be undef during global destruction
+  $_[0]->disconnect;
 }
-
 
 sub connect {
   my $self = shift;
 
-  # drop old connection
-  if ($self->connected) {
-    $self->ioloop->remove($self->{_connection});
-  }
-
   Scalar::Util::weaken $self;
+
+  $self->disconnect; # drop old connection
   $self->server =~ m{^([^:]+)(?::(\d+))?};
   $self->{_connecting} = 1;
   $self->{_connection} = $self->ioloop->client(
@@ -110,7 +96,16 @@ sub connect {
       }
 
       $stream->timeout($self->timeout);
-      $stream->on(read => sub { $self->protocol->parse($_[1]) });
+      $stream->on(
+        read => sub {
+          $self->protocol->parse($_[1]);
+
+          if(DEBUG) {
+            $_[1] =~ s/\r?\n/','/g;
+            warn "REDIS[@{[$self->{_connection}]}] >>> ['$_[1]']\n";
+          }
+        }
+      );
       $stream->on(
         close => sub {
           $self->_inform_queue;
@@ -125,7 +120,7 @@ sub connect {
           $self or return; # $self may be undef during global destruction
           $self->_inform_queue;
           $self->emit_safe(error => $_[1]);
-          $self->ioloop->remove($self->{_connection});
+          $self->disconnect;
         }
       );
 
@@ -140,77 +135,44 @@ sub connect {
 sub disconnect {
   my $self = shift;
 
-  # drop old connection
-  if ($self->connected) {
-    $self->ioloop->remove($self->{_connection});
-  }
-
+  $self->ioloop->remove($self->{_connection}) if $self->{_connection};
   $self;
 }
 
 sub subscribe {
-  my ($self, @channels) = @_;
-  my $protocol = $self->protocol_redis->new(api => 1);
-  my $cb = pop @channels;
-  my $id;
+  my($self, @channels) = @_;
+  my $cb = ref $channels[-1] eq 'CODE' ? pop @channels : undef;
+  my $n = 0;
 
-  $protocol->on_message(
-    sub {
-      my ($parser, $message) = @_;
-      my $data = $self->_reencode_message($message);
-      $self->$cb($data);
-    }
-  );
+  if(!$cb) {
+    return Mojo::Redis::Subscription->new(
+      channels => [@channels],
+      server => $self->server,
+      ioloop => $self->ioloop,
+      encoding => $self->encoding,
+      protocol_redis => $self->protocol_redis,
+    )->connect;
+  }
 
+  # need to attach new callback to the protocol object
   Scalar::Util::weaken $self;
-  $self->server =~ m{^([^:]+)(?::(\d+))?};
-  $id = $self->ioloop->client(
-    { address => $1,
-      port    => $2 || 6379,
-    },
+  push @{ $self->{_cb_queue} }, ($cb) x (@channels - 1);
+  $self->execute(
+    [ subscribe => @channels ],
     sub {
-      my ($loop, $error, $stream) = @_;
-      my @tokens = ('subscribe', @channels);
-      my $cmd_arg = [];
-
-      $error and return $self->emit(error => $error);
-      $stream->timeout($self->timeout);
-      $stream->on(read => sub { $protocol->parse($_[1]) });
-      $stream->on(close =>
+      shift; # we already got $self
+      $self->$cb(@_);
+      $self->{protocol} = $self->protocol_redis->new(api => 1);
+      $self->{protocol} or Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/);
+      $self->{protocol}->on_message(
         sub {
-          $self->emit('close');
-          delete $self->{_ids}{$id};
+          my ($parser, $message) = @_;
+          my $data = $self->_reencode_message($message) or return;
+          $self->$cb($data);
         }
       );
-      $stream->on(error =>
-        sub {
-          $self->emit(error => $_[1]);
-          $self->ioloop->remove($id);
-        }
-      );
-
-      foreach my $token (@tokens) {
-        $token = Encode::encode($self->encoding, $token)
-          if $self->encoding;
-        push @$cmd_arg, {type => '$', data => $token};
-      }
-
-      $stream->write($protocol->encode({ type => '*', data => $cmd_arg }));
     }
   );
-
-  $self->{_ids}{$id} = 1;
-  $self;
-}
-
-sub subscribe_to_messages {
-  my $cb = pop @_;
-  my ($self, @channels) = @_;
-
-  $self->subscribe(@channels, sub {
-    my($self, $res) = @_;
-    $self->$cb(@$res[2, 1]) if $res->[0] eq 'message';
-  });
 }
 
 sub execute {
@@ -271,7 +233,7 @@ sub _send_next_message {
       push @$cmd_arg, {type => '$', data => $token};
     }
 
-    $stream->write($protocol->encode({ type => '*', data => $cmd_arg }));
+    $self->_write($stream, { type => '*', data => $cmd_arg });
   }
 }
 
@@ -280,7 +242,7 @@ sub _reencode_message {
   my ($type, $data) = @{$message}{'type', 'data'};
 
   # Decode data
-  if ($type ne '*' && $self->encoding && $data) {
+  if ($type ne '*' and $self->encoding and $data) {
     $data = Encode::decode($self->encoding, $data);
   }
 
@@ -330,6 +292,18 @@ sub _inform_queue {
   }
 
   $self->{_queue} = [];
+}
+
+sub _write {
+  my($self, $stream, $what) = @_;
+  my $message = $self->protocol->encode($what);
+
+  $stream->write($message);
+
+  if(DEBUG) {
+    $message =~ s/\r?\n/','/g;
+    warn "REDIS[@{[$self->{_connection}]}] <<< ['$message']\n";
+  }
 }
 
 1;
@@ -507,29 +481,29 @@ Connect to C<Redis> server.
     );
 
 Execute specified command on C<Redis> server. If error occurred during
-request $result will be set to undef, error string can be obtained with 
+request $result will be set to undef, error string can be obtained with
 the L</error> event.
 
 =head1 REDIS METHODS
 
 =head2 subscribe
 
-   $id = $redis->subscribe('foo','bar' => sub {
-    my ($redis,$res)=@_;
-    # Called for subscribe messages and all publish calls.
+It's possible to subscribe in two ways:
+
+   $self = $redis->subscribe('foo','bar' => sub {
+     my ($redis, $data) = @_;
    });
 
-Opens up a new connection that subscribes to the given pubsub channels
-returns the id of the connection in the L<Mojo::IOLoop>.
+The above code will overtake the current connection (if any) and put this
+object into a pure subscribe mode.
 
-=head2 subscribe_to_messages
+   $sub = $redis->subscribe('foo','bar')->on(data => sub {
+            my ($sub, $data) = @_;
+          });
 
-   $redis->subscribe_to_messages(foo => sub {
-     my($redis, $message, $channel) = @_;
-   });
-
-This is the same as L</subscribe> but the callback will only be called on a
-message.
+Opens up a new connection that subscribes to the given pubsub channels.
+Returns an instance of L<Mojo::Redis::Subscription>. The existing C<$redis>
+object can still be used to L</get> data as expected.
 
 =head1 REDIS METHODS
 
@@ -665,11 +639,7 @@ message.
 
 =head2 protocol
 
-=head2 psubscribe
-
 =head2 publish
-
-=head2 punsubscribe
 
 =head2 quit
 
@@ -742,8 +712,6 @@ message.
 =head2 ttl
 
 =head2 type
-
-=head2 unsubscribe
 
 =head2 unwatch
 
