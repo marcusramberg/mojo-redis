@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-0.9901
+0.9901   Tue Nov  6 12:06:18 2012
          - Fix POD errors
          - Use Mojo::IOLoop->delay in Mojolicious example
          - Add websocket example

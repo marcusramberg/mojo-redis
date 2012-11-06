@@ -61,7 +61,7 @@ SYNOPSIS
         my $self = shift;
         my $tx = $self->tx;
         my $pub = Mojo::Redis->new;
-        my $sub = Mojo::Redis->new->subscribe('messages');
+        my $sub = $pub->subscribe('messages');
 
         # message from redis
         $sub->on(message => sub {

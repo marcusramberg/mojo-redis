@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = eval '0.99';
+our $VERSION = eval '0.9901';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -374,7 +374,7 @@ application.
     my $self = shift;
     my $tx = $self->tx;
     my $pub = Mojo::Redis->new;
-    my $sub = Mojo::Redis->new->subscribe('messages');
+    my $sub = $pub->subscribe('messages');
 
     # message from redis
     $sub->on(message => sub {
