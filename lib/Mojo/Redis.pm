@@ -77,7 +77,7 @@ sub DESTROY {
 
 sub connect {
   my $self = shift;
-  my($url, $auth);
+  my($url, $auth, $db_index);
 
   if($self->server =~ m{^[^:]+:\d+$}) {
     $url = Mojo::URL->new('redis://' .$self->server);
@@ -88,6 +88,7 @@ sub connect {
 
   Scalar::Util::weaken $self;
   $auth = (split /:/, $url->userinfo || '')[1];
+  $db_index = ($url->path =~ /(\d+)/)[0];
 
   $self->disconnect; # drop old connection
   $self->{_connecting} = 1;
@@ -133,9 +134,14 @@ sub connect {
         }
       );
 
+      my $mqueue = $self->{_message_queue} ||= [];
+      my $cqueue = $self->{_cb_queue} ||= [];
+
+      if(defined $db_index) { # need to be before defined $auth below
+        unshift @$mqueue, [ SELECT => $db_index ];
+        unshift @$cqueue, sub {}; # no error handling needed. got on(error => ...)
+      }
       if(defined $auth) {
-        my $mqueue = $self->{_message_queue} ||= [];
-        my $cqueue = $self->{_cb_queue} ||= [];
         unshift @$mqueue, [ AUTH => $auth ];
         unshift @$cqueue, sub {}; # no error handling needed. got on(error => ...)
       }
