@@ -1,5 +1,13 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9902   Tue Nov  6 23:59:00 2012
+         - Add support for "redis://" url scheme
+         - Add support for "SELECT INDEX" on connect using
+           $redis->server('redis://127.0.0.1/INDEX')
+         - Add support for AUTH on connect using
+           $redis->server('redis://foo:AUTHKEY@127.0.0.1')
+
+
 0.9901   Tue Nov  6 12:06:18 2012
          - Fix POD errors
          - Use Mojo::IOLoop->delay in Mojolicious example

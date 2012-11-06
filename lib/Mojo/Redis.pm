@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = eval '0.9901';
+our $VERSION = eval '0.9902';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -452,11 +452,12 @@ L<Mojo::Redis> implements the following attributes.
 
     my $server = $redis->server;
     $redis     = $redis->server('127.0.0.1:6379');
-    $redis     = $redis->server('http://anything:PASSWORD@127.0.0.1:6379');
+    $redis     = $redis->server('redis://anything:PASSWORD@127.0.0.1:6379/DB_INDEX');
 
-C<Redis> server connection string, defaults to '127.0.0.1:6379'. The latter
-can be used if you want L<Mojo::Redis> to automatically run L</auth>
-with C<PASSWORD> on connect.
+C<Redis> server connection string, defaults to '127.0.0.1:6379'. The
+latter can be used if you want L<Mojo::Redis> to automatically run L</auth>
+with C<PASSWORD> and/or L</select> with C<DB_INDEX> on connect. Both AUTH
+and DB_INDEX are optional.
 
 =head2 ioloop
 
@@ -697,6 +698,8 @@ See L</server> instead.
 =head2 sdiffstore
 
 =head2 select
+
+See L</server> instead.
 
 =head2 set
 

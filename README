@@ -112,8 +112,12 @@ ATTRIBUTES
   server
         my $server = $redis->server;
         $redis     = $redis->server('127.0.0.1:6379');
+        $redis     = $redis->server('redis://anything:PASSWORD@127.0.0.1:6379/DB_INDEX');
 
-    "Redis" server connection string, defaults to '127.0.0.1:6379'.
+    "Redis" server connection string, defaults to '127.0.0.1:6379'. The
+    latter can be used if you want Mojo::Redis to automatically run "auth"
+    with "PASSWORD" and/or "select" with "DB_INDEX" on connect. Both AUTH
+    and DB_INDEX are optional.
 
   ioloop
         my $ioloop = $redis->ioloop;
@@ -184,6 +188,8 @@ METHODS
 REDIS METHODS
   append
   auth
+    See "server" instead.
+
   bgrewriteaof
   bgsave
   blpop
@@ -263,6 +269,8 @@ REDIS METHODS
   sdiff
   sdiffstore
   select
+    See "server" instead.
+
   set
   setbit
   setex
