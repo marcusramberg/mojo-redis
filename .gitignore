@@ -12,4 +12,3 @@ pm_to_blib
 /MYMETA.*
 /Changes.old
 /Mojo-Redis-*.tar.gz
-/README

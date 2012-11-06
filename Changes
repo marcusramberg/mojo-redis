@@ -1,5 +1,11 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9901
+         - Fix POD errors
+         - Use Mojo::IOLoop->delay in Mojolicious example
+         - Add websocket example
+         - Add jhthorsen to AUTHOR list
+
 0.99     Tue Nov  6 11:03:46 2012
          - Add "close" and "error" events
          - Add execute() can handle multiple commands

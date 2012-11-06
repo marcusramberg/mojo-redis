@@ -315,82 +315,92 @@ Mojo::Redis - Asynchronous Redis client for L<Mojolicious>.
 
 =head1 SYNOPSIS
 
-    use Mojo::Redis;
+  use Mojo::Redis;
 
-    my $redis = Mojo::Redis->new(server => '127.0.0.1:6379');
+  my $redis = Mojo::Redis->new(server => '127.0.0.1:6379');
 
-    # Execute some commands
-    $redis->ping(
-        sub {
-            my ($redis, $res) = @_;
+  # Execute some commands
+  $redis->ping(
+    sub {
+      my ($redis, $res) = @_;
+      if (defined $res) {
+        print "Got result: ", $res->[0], "\n";
+      }
+    }
+  );
 
-            if (defined $res) {
-                print "Got result: ", $res->[0], "\n";
-            }
-        }
-    );
+  # Work with keys
+  # Ommitting the callback still makes it non-blocking and "error" events
+  # will be called if something terrible goes wrong.
+  $redis->set(key => 'value');
 
-    # Work with keys
-    $redis->set(key => 'value');
+  $redis->get(
+    key => sub {
+      my ($redis, $res) = @_;
+      print "Value of 'key' is $res\n";
+    }
+  );
 
-    $redis->get(
-        key => sub {
-            my ($redis, $res) = @_;
+  # Cleanup connection
+  $redis->quit(sub { shift->ioloop->stop });
 
-            print "Value of 'key' is $res\n";
-        }
-    );
-
-
-    # Cleanup connection
-    $redis->quit(sub { shift->ioloop->stop });
-
-    # Start IOLoop (in case it is not started yet)
-    $redis->ioloop->start;
+  # Start IOLoop (in case it is not started yet)
+  $redis->ioloop->start;
 
 Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
 application.
 
-    use Mojolicious::Lite;
-    use Mojo::Redis;
+  use Mojolicious::Lite;
+  use Mojo::Redis;
 
-    get '/user' => sub {
-        my $self = shift->render_later;
-        my $uid = $self->session('uid');
-        my $redis = Mojo::Redis->new;
+  get '/user' => sub {
+    my $self = shift->render_later;
+    my $uid = $self->session('uid');
+    my $redis = Mojo::Redis->new;
 
-        Mojo::IOLoop->delay(
-            sub {
-                my ($delay) = @_;
-                $redis->hgetall("user:$uid", $delay->begin);
-            },
-            sub {
-                my ($delay, $user) = @_;
-                $self->render_json($user);
-            },
-        );
-    };
+    Mojo::IOLoop->delay(
+      sub {
+        my ($delay) = @_;
+        $redis->hgetall("user:$uid", $delay->begin);
+      },
+      sub {
+        my ($delay, $user) = @_;
+        $self->render_json($user);
+      },
+    );
+  };
 
-    websocket '/messages' => sub {
-        my $self = shift;
-        my $tx = $self->tx;
-        my $sub = Mojo::Redis->new->subscribe('messages');
+  websocket '/messages' => sub {
+    my $self = shift;
+    my $tx = $self->tx;
+    my $pub = Mojo::Redis->new;
+    my $sub = Mojo::Redis->new->subscribe('messages');
 
-        $sub->on(message => sub {
-            my($sub, $channel, $message) = @_; # $channel == messages
-            $tx->send($message);
-        });
-        $self->on(finish => sub {
-            undef $sub;
-            undef $tx;
-        });
-    };
+    # message from redis
+    $sub->on(message => sub {
+      my ($sub, $channel, $message) = @_; # $channel == messages
+      $tx->send($message);
+    });
 
-    app->start;
+    # message from websocket
+    $self->on(message => sub {
+      my ($self, $message) = @_;
+      $pub->publish(messages => $message);
+    });
+
+    # need to clean up after websocket close
+    $self->on(finish => sub {
+      undef $pub;
+      undef $sub;
+      undef $tx;
+    });
+  };
+
+  app->start;
 
 =head1 DESCRIPTION
 
-L<Mojo::Redis> is an asynchronous client to Redis for Mojo.
+L<Mojo::Redis> is an asynchronous client to L<Redis|http://redis.io> for Mojo.
 
 =head1 EVENTS
 
