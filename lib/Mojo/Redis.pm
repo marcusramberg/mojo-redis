@@ -5,6 +5,7 @@ use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
 use Mojo::Redis::Subscription;
+use Mojo::URL;
 use Scalar::Util ();
 use Encode       ();
 use Carp;
@@ -76,15 +77,23 @@ sub DESTROY {
 
 sub connect {
   my $self = shift;
+  my($url, $auth);
+
+  if($self->server =~ m{^[^:]+:\d+$}) {
+    $url = Mojo::URL->new('redis://' .$self->server);
+  }
+  else {
+    $url = Mojo::URL->new($self->server);
+  }
 
   Scalar::Util::weaken $self;
+  $auth = (split /:/, $url->userinfo || '')[1];
 
   $self->disconnect; # drop old connection
-  $self->server =~ m{^([^:]+)(?::(\d+))?};
   $self->{_connecting} = 1;
   $self->{_connection} = $self->ioloop->client(
-    { address => $1,
-      port    => $2 || 6379,
+    { address => $url->host,
+      port    => $url->port || 6379,
     },
     sub {
       my ($loop, $error, $stream) = @_;
@@ -123,6 +132,13 @@ sub connect {
           $self->disconnect;
         }
       );
+
+      if(defined $auth) {
+        my $mqueue = $self->{_message_queue} ||= [];
+        my $cqueue = $self->{_cb_queue} ||= [];
+        unshift @$mqueue, [ AUTH => $auth ];
+        unshift @$cqueue, sub {}; # no error handling needed. got on(error => ...)
+      }
 
       delete $self->{_connecting};
       $self->_send_next_message;
@@ -430,8 +446,11 @@ L<Mojo::Redis> implements the following attributes.
 
     my $server = $redis->server;
     $redis     = $redis->server('127.0.0.1:6379');
+    $redis     = $redis->server('http://anything:PASSWORD@127.0.0.1:6379');
 
-C<Redis> server connection string, defaults to '127.0.0.1:6379'.
+C<Redis> server connection string, defaults to '127.0.0.1:6379'. The latter
+can be used if you want L<Mojo::Redis> to automatically run L</auth>
+with C<PASSWORD> on connect.
 
 =head2 ioloop
 
@@ -512,6 +531,8 @@ the L</error> event.
 =head2 append
 
 =head2 auth
+
+See L</server> instead.
 
 =head2 bgrewriteaof
 
