@@ -311,7 +311,7 @@ __END__
 
 =head1 NAME
 
-Mojo::Redis - asynchronous Redis client for L<Mojolicious>.
+Mojo::Redis - Asynchronous Redis client for L<Mojolicious>.
 
 =head1 SYNOPSIS
 
@@ -354,23 +354,36 @@ application.
     use Mojolicious::Lite;
     use Mojo::Redis;
 
-    get '/' => sub {
+    get '/user' => sub {
+        my $self = shift->render_later;
+        my $uid = $self->session('uid');
+        my $redis = Mojo::Redis->new;
+
+        Mojo::IOLoop->delay(
+            sub {
+                my ($delay) = @_;
+                $redis->hgetall("user:$uid", $delay->begin);
+            },
+            sub {
+                my ($delay, $user) = @_;
+                $self->render_json($user);
+            },
+        );
+    };
+
+    websocket '/messages' => sub {
         my $self = shift;
+        my $tx = $self->tx;
+        my $sub = Mojo::Redis->new->subscribe('messages');
 
-        my $redis = Mojo::Redis->new(ioloop => Mojo::IOLoop->new);
-
-        my $value;
-
-        $redis->set(foo => 'bar')->get(
-            foo => sub {
-                my ($redis, $result) = @_;
-
-                $redis->quit->ioloop->stop;
-                $value = $result->[0];
-            }
-        )->ioloop->start;
-
-        $self->render(text => qq(Foo value is "$value"));
+        $sub->on(message => sub {
+            my($sub, $channel, $message) = @_; # $channel == messages
+            $tx->send($message);
+        });
+        $self->on(finish => sub {
+            undef $sub;
+            undef $tx;
+        });
     };
 
     app->start;
@@ -483,27 +496,6 @@ Connect to C<Redis> server.
 Execute specified command on C<Redis> server. If error occurred during
 request $result will be set to undef, error string can be obtained with
 the L</error> event.
-
-=head1 REDIS METHODS
-
-=head2 subscribe
-
-It's possible to subscribe in two ways:
-
-   $self = $redis->subscribe('foo','bar' => sub {
-     my ($redis, $data) = @_;
-   });
-
-The above code will overtake the current connection (if any) and put this
-object into a pure subscribe mode.
-
-   $sub = $redis->subscribe('foo','bar')->on(data => sub {
-            my ($sub, $data) = @_;
-          });
-
-Opens up a new connection that subscribes to the given pubsub channels.
-Returns an instance of L<Mojo::Redis::Subscription>. The existing C<$redis>
-object can still be used to L</get> data as expected.
 
 =head1 REDIS METHODS
 
@@ -703,6 +695,25 @@ object can still be used to L</get> data as expected.
 
 =head2 strlen
 
+=head2 subscribe
+
+It's possible to subscribe in two ways:
+
+   $self = $redis->subscribe('foo','bar' => sub {
+     my ($redis, $data) = @_;
+   });
+
+The above code will overtake the current connection (if any) and put this
+object into a pure subscribe mode.
+
+   $sub = $redis->subscribe('foo','bar')->on(data => sub {
+            my ($sub, $data) = @_;
+          });
+
+Opens up a new connection that subscribes to the given pubsub channels.
+Returns an instance of L<Mojo::Redis::Subscription>. The existing C<$redis>
+object can still be used to L</get> data as expected.
+
 =head2 sunion
 
 =head2 sunionstore
@@ -755,22 +766,16 @@ L<Protocol::Redis>, L<Mojolicious>, L<Mojo::IOLoop>
 
 =head1 SUPPORT
 
-=head2 IRC
-
-    #mojo on irc.perl.org
-
-=head1 DEVELOPMENT
-
-=head2 Repository
-
-    https://github.com/und3f/mojox-redis
+You can contact the developers "marcus" and "batman" on IRC:
+L<irc://irc.perl.org:6667/#mojo> (#mojo on irc.perl.org)
 
 =head1 AUTHOR
 
 Sergey Zasenko, C<undef@cpan.org>.
 
 Forked from MojoX::Redis and updated to new IOLoop API by
-Marcus Ramberg C<mramberg@cpan.org>.
+Marcus Ramberg C<mramberg@cpan.org>
+and Jan Henning Thorsen C<jhthorsen@cpan.org>.
 
 =head1 COPYRIGHT AND LICENSE
 
