@@ -6,13 +6,29 @@ Mojo::Redis::Subscription - Result of Mojo::Redis->subscribe()
 
 =head1 SYNOPSIS
 
-    use Mojo::Redis;
-    $r = Mojo::Redis->new;
-    $s = $r->subscribe('foo', sub { ... });
+You can create a L<Mojo::Redis::Subscription> object in two ways:
 
-    use Mojo::Redis::Subscription;
-    my $s = Mojo::Redis::Subscription->new;
-    $s->on(message => sub { ... });
+Either from L<Mojo::Redis>:
+
+  use Mojo::Redis;
+  $r = Mojo::Redis->new;
+  $s = $r->subscribe('foo'); # does also ->connect()
+  print @{ $s->channels } # print "foo";
+
+...or from L<Mojo::Redis::Subscription>:
+
+  use Mojo::Redis::Subscription;
+  my $s = Mojo::Redis::Subscription->new;
+  $s->channels(['foo']);
+  $s->connect;
+
+Either way you need to subscribe to an event:
+
+  $s->on(message => sub {
+      my($s, $message, $channel) = @_;
+  });
+
+  Mojo::IOLoop->start;
 
 =cut
 

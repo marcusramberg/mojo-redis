@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9903   Thu Nov  8 23:02:57 2012
+         - Fix error in documentation, related to on(message) event
+
 0.9902   Tue Nov  6 23:59:00 2012
          - Add support for "redis://" url scheme
          - Add support for "SELECT INDEX" on connect using

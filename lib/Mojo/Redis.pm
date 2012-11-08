@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = eval '0.9902';
+our $VERSION = eval '0.9903';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -400,7 +400,7 @@ application.
 
     # message from redis
     $sub->on(message => sub {
-      my ($sub, $channel, $message) = @_; # $channel == messages
+      my ($sub, $message, $channel) = @_; # $channel == messages
       $tx->send($message);
     });
 

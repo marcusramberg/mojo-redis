@@ -65,7 +65,7 @@ SYNOPSIS
 
         # message from redis
         $sub->on(message => sub {
-          my ($sub, $channel, $message) = @_; # $channel == messages
+          my ($sub, $message, $channel) = @_; # $channel == messages
           $tx->send($message);
         });
 
