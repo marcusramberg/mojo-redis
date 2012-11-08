@@ -10,21 +10,21 @@ Mojo::Redis::Schema - Work on redis data with a schema
   use Mojo::Redis::Schema;
 
   namespace 'user';
-
-  hash {
-    keys => [qw/ login name uid /],
-    lookup => 'login',
-  };
-
-  set friends => 'My::App::Model::User';
+  key 'login', lookup;
+  key 'name';
+  set 'friends' => 'My::App::Model::User';
+  string 'about';
 
   # checks all datastructures defined above to make sure they
-  # make sense and returns a true value.
+  # make sense and returns a true value. Will also clean out
+  # all the keywords
   build;
 
-  my $user = My::App::Model::User->new;
+  $user = My::App::Model::User->new;
   $user->login('Foo');
   $user->name('Doe');
+  $user->about('Loooong');
+  $user->about->append(' string);
   $user->friends->sadd($user2);
   $user->exec;
 
@@ -33,7 +33,13 @@ The above creates this redis structure:
   "id:user" = 1
   "user:1" = { login => "Foo", name => "Doe" };
   "user:1:friends" = [ 2 ]
-  "user:1:Foo:id" = 1
+  "user:1:about" = "Loooong string"
+  "user:Foo:id" = 1
+
+Find a user:
+
+  $user = My::App::Model::User->find(1);
+  $user = My::App::Model::User->find(login => 'Foo');
 
 =head1 DESCRIPTION
 
