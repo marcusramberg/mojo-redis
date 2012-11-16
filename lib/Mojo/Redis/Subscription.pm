@@ -13,7 +13,7 @@ Either from L<Mojo::Redis>:
   use Mojo::Redis;
   $r = Mojo::Redis->new;
   $s = $r->subscribe('foo'); # does also ->connect()
-  print @{ $s->channels } # print "foo";
+  print @{ $s->channels } # print "foo";
 
 ...or from L<Mojo::Redis::Subscription>:
 
