@@ -39,7 +39,7 @@ has protocol => sub {
 sub connected { $_[0]->{_connection} ? 1 : 0 }
 
 sub timeout {
-  return $_[0]->{timeout} unless @_ > 1;
+  return $_[0]->{timeout} || 300 unless @_ > 1;
   my($self, $t) = @_;
   my $id = $self->{_connection};
 
@@ -133,6 +133,14 @@ sub connect {
           $self->disconnect;
         }
       );
+      $stream->on(
+        timeout => sub {
+          $self or return; # $self may be undef during global destruction
+          $self->_inform_queue;
+          $self->emit_safe(error => 'Timeout');
+          $self->disconnect;
+        }
+      );
 
       my $mqueue = $self->{_message_queue} ||= [];
       my $cqueue = $self->{_cb_queue} ||= [];
@@ -173,6 +181,7 @@ sub subscribe {
       ioloop => $self->ioloop,
       encoding => $self->encoding,
       protocol_redis => $self->protocol_redis,
+      timeout => $self->timeout,
     )->connect;
   }
 
