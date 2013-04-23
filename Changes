@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9904   Tue Apr 23 21:23:46 2013
+         - Will also emit "error" on timeout
+         - Fix timeout is passed on to subscription object
+
 0.9903   Thu Nov  8 23:02:57 2012
          - Fix error in documentation, related to on(message) event
 
