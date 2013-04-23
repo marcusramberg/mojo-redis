@@ -21,8 +21,10 @@ my $redis = $pubsub->new($pubsub); # make clone
 my $errors = 0;
 my $scb=0;
 
-$pubsub->on(error => sub { warn $_[1]; $errors++ });
-$redis->on(error => sub { warn $_[1]; $errors++ });
+$pubsub->on(error => sub { diag $_[1]; $errors++ });
+$redis->on(error => sub { diag $_[1]; $errors++ });
+$pubsub->on(close => sub { diag 'close'; $errors++ });
+$redis->on(close => sub { diag 'close'; $errors++ });
 
 is $pubsub->subscribe(
   'foo','bar' => sub {
