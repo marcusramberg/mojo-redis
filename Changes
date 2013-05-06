@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9905
+         - Fix parsing of redis://host:port/db-index
+
 0.9904   Tue Apr 23 21:23:46 2013
          - Will also emit "error" on timeout
          - Fix timeout is passed on to subscription object

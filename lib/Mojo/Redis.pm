@@ -77,18 +77,12 @@ sub DESTROY {
 
 sub connect {
   my $self = shift;
-  my($url, $auth, $db_index);
-
-  if($self->server =~ m{^[^:]+:\d+$}) {
-    $url = Mojo::URL->new('redis://' .$self->server);
-  }
-  else {
-    $url = Mojo::URL->new($self->server);
-  }
+  my $url = $self->_server_to_url;
+  my($auth, $db_index);
 
   Scalar::Util::weaken $self;
   $auth = (split /:/, $url->userinfo || '')[1];
-  $db_index = ($url->path =~ /(\d+)/)[0];
+  $db_index = $url->path->[0] || '';
 
   $self->disconnect; # drop old connection
   $self->{_connecting} = 1;
@@ -145,7 +139,7 @@ sub connect {
       my $mqueue = $self->{_message_queue} ||= [];
       my $cqueue = $self->{_cb_queue} ||= [];
 
-      if(defined $db_index) { # need to be before defined $auth below
+      if($db_index =~ /^\d+/) { # need to be before defined $auth below
         unshift @$mqueue, [ SELECT => $db_index ];
         unshift @$cqueue, sub {}; # no error handling needed. got on(error => ...)
       }
@@ -308,7 +302,6 @@ sub _return_command_data {
   };
 }
 
-
 sub _inform_queue {
   my ($self) = @_;
 
@@ -335,6 +328,22 @@ sub _write {
     $message =~ s/\r?\n/','/g;
     warn "REDIS[@{[$self->{_connection}]}] <<< ['$message']\n";
   }
+}
+
+sub _server_to_url {
+  my $self = shift;
+  my $url;
+
+  if($self->server =~ m{^[^:]+:\d+$}) {
+    $url = Mojo::URL->new('redis://' .$self->server);
+  }
+  else {
+    $url = Mojo::URL->new($self->server);
+  }
+
+  # I have noooooo idea why this makes sense
+  # https://github.com/kraih/mango/commit/5dc6d67bb84f32aa16bbd5967650366006672747
+  Mojo::URL->new($url->scheme('http'));
 }
 
 1;

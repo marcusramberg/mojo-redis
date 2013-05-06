@@ -5,23 +5,18 @@
 
 use strict;
 use warnings;
-use lib 'lib';
-
-use Test::More tests => 10;
-
+use Test::More tests => 13;
 use Mojo::IOLoop;
 
 use_ok 'Mojo::Redis';
 
 my $port = Mojo::IOLoop->generate_port;
 
-
 my ($sbuffer1, $sbuffer2, $sbuffer3);
 my ($r, $r1, $r2, $r4);
 my $curr_stream;
 
 $r4 = 'wrong result';
-
 
 my $server = Mojo::IOLoop->server(
     {port => $port},
@@ -78,7 +73,14 @@ is $r2, 'ok2', 'second command';
 is $sbuffer3, "*3\r\n\$3\r\nSET\r\n\$3\r\nkey\r\n\$5\r\nvalue\r\n",
   'fast command';
 
-is $r4,          undef,          'error result';
+is $r4, undef, 'error result';
+
+
+$redis = Mojo::Redis->new(server => 'redis://redis.server:1234/14');
+is $redis->_server_to_url->host, 'redis.server', 'got host';
+is $redis->_server_to_url->port, '1234', 'got port';
+is $redis->_server_to_url->path->[0], 14, 'got db index';
+
 
 # Multiple pipelined commands
 sub test2 {
