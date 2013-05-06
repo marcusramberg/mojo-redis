@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-0.9905
+0.9905   Tue May  7 01:05:11 2013
          - Fix parsing of redis://host:port/db-index
 
 0.9904   Tue Apr 23 21:23:46 2013
