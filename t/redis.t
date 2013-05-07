@@ -79,8 +79,7 @@ is $r4, undef, 'error result';
 $redis = Mojo::Redis->new(server => 'redis://redis.server:1234/14');
 is $redis->_server_to_url->host, 'redis.server', 'got host';
 is $redis->_server_to_url->port, '1234', 'got port';
-is $redis->_server_to_url->path->[0], 14, 'got db index';
-
+is +($redis->_server_to_url->path =~ /(\d+)/)[0], '14', 'got db index';
 
 # Multiple pipelined commands
 sub test2 {

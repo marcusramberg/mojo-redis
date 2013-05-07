@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9907   Tue May  7 12:55:41 2013
+       - Forgot to fix unittest
+
 0.9906   Tue May  7 12:51:07 2013
        - Fix extracting DB index from redis path
 
