@@ -82,7 +82,7 @@ sub connect {
 
   Scalar::Util::weaken $self;
   $auth = (split /:/, $url->userinfo || '')[1];
-  $db_index = $url->path->[0] || '';
+  $db_index = ($url->path =~ /(\d+)/)[0] || '';
 
   $self->disconnect; # drop old connection
   $self->{_connecting} = 1;
@@ -224,8 +224,12 @@ sub execute {
   if($cb) {
     my @res;
     my $process = sub {
-      my $command = shift @commands;
-      push @res, $command->[0] eq 'HGETALL' ? $_[1] ? { @{ $_[1] } } : undef : $_[1];
+      if(my $command = shift @commands) {
+        push @res, $command->[0] eq 'HGETALL' ? $_[1] ? { @{ $_[1] } } : undef : $_[1];
+      }
+      else {
+        push @res, undef;
+      }
       $_[0]->$cb(@res) unless @commands;
     };
     push @$cqueue, ($process) x int @commands;

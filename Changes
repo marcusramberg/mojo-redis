@@ -1,84 +1,88 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9906
+       - Fix extracting DB index from redis path
+
 0.9905   Tue May  7 01:05:11 2013
-         - Fix parsing of redis://host:port/db-index
+       - Fix parsing of redis://host:port/db-index
 
 0.9904   Tue Apr 23 21:23:46 2013
-         - Will also emit "error" on timeout
-         - Fix timeout is passed on to subscription object
+       - Will also emit "error" on timeout
+       - Fix timeout is passed on to subscription object
 
 0.9903   Thu Nov  8 23:02:57 2012
-         - Fix error in documentation, related to on(message) event
+       - Fix error in documentation, related to on(message) event
 
 0.9902   Tue Nov  6 23:59:00 2012
-         - Add support for "redis://" url scheme
-         - Add support for "SELECT INDEX" on connect using
-           $redis->server('redis://127.0.0.1/INDEX')
-         - Add support for AUTH on connect using
-           $redis->server('redis://foo:AUTHKEY@127.0.0.1')
+       - Add support for "redis://" url scheme
+       - Add support for "SELECT INDEX" on connect using
+         $redis->server('redis://127.0.0.1/INDEX')
+       - Add support for AUTH on connect using
+         $redis->server('redis://foo:AUTHKEY@127.0.0.1')
 
 
 0.9901   Tue Nov  6 12:06:18 2012
-         - Fix POD errors
-         - Use Mojo::IOLoop->delay in Mojolicious example
-         - Add websocket example
-         - Add jhthorsen to AUTHOR list
+       - Fix POD errors
+       - Use Mojo::IOLoop->delay in Mojolicious example
+       - Add websocket example
+       - Add jhthorsen to AUTHOR list
 
 0.99     Tue Nov  6 11:03:46 2012
-         - Add "close" and "error" events
-         - Add execute() can handle multiple commands
-         - Add hgetall() will return a hash-ref instead of array-ref
-         - Add pubsub support
-         - Add Mojo::Redis::Subscription
-         - Add support for changing timeout later on
-         - Remove "error" attribute and on_error() callback
-         - Remove start() and stop()
-         - Replace AUTOLOAD with sub routine injection
+       - Add "close" and "error" events
+       - Add execute() can handle multiple commands
+       - Add hgetall() will return a hash-ref instead of array-ref
+       - Add pubsub support
+       - Add Mojo::Redis::Subscription
+       - Add support for changing timeout later on
+       - Remove "error" attribute and on_error() callback
+       - Remove start() and stop()
+       - Replace AUTOLOAD with sub routine injection
 
-0.9 2012-06-17 00:00:00
-         - Forked to new name
-	 - Updated to work with new IOLoop API.
+0.9      2012-06-17 00:00:00
+       - Forked to new name
+       - Updated to work with new IOLoop API.
 
-0.83 2011-12-11 00:00:00
-         - Added info about Protocol::Redis::XS
-         - Fixed to work with latest Mojolicious
+0.83     2011-12-11 00:00:00
+       - Added info about Protocol::Redis::XS
+       - Fixed to work with latest Mojolicious
 
-0.82 2011-11-02 00:00:00
-         - Documentation improved
+0.82     2011-11-02 00:00:00
+       - Documentation improved
 
-0.81 2011-07-30 00:00:00
-         - fixed encoding issue on multi-bulk reply
+0.81     2011-07-30 00:00:00
+       - fixed encoding issue on multi-bulk reply
 
-0.8  2011-02-01 00:00:00
-         - moved to Protocol::Redis parser
-         - changed response format for multi-bulk replies (LRANGE, ...) API
-           CHANGED!
-         - use new API of IOLoop
+0.8      2011-02-01 00:00:00
+       - moved to Protocol::Redis parser
+       - changed response format for multi-bulk replies (LRANGE, ...) API
+         CHANGED!
+       - use new API of IOLoop
 
-0.7  2011-01-30 00:00:00
-         - on_error method added
-         - added not live tests
-         - added fast commands
+0.7      2011-01-30 00:00:00
+       - on_error method added
+       - added not live tests
+       - added fast commands
 
-0.6  2010-12-15 00:00:00
-         - Better connection handling
+0.6      2010-12-15 00:00:00
+       - Better connection handling
 
-0.5  2010-11-25 00:00:00
-         - Fixed memory leaks
+0.5      2010-11-25 00:00:00
+       - Fixed memory leaks
 
-0.4  2010-11-14 00:00:00
-         - Warning! Changed callback interface
-         - Documentation added
-         - Small improvements
+0.4      2010-11-14 00:00:00
+       - Warning! Changed callback interface
+       - Documentation added
+       - Small improvements
 
-0.3  2010-11-09 00:00:00
-         - Fixed encoding support
-         - Processing nil values
-         - Processing lists with zero elements
+0.3      2010-11-09 00:00:00
+       - Fixed encoding support
+       - Processing nil values
+       - Processing lists with zero elements
 
-0.2  2010-11-06 00:00:00
-         - Nice pipline command parsing
-         - timeout added
+0.2      2010-11-06 00:00:00
+       - Nice pipline command parsing
+       - timeout added
 
-0.1  2010-11-04 00:00:00
-        - First release
+0.1      2010-11-04 00:00:00
+       - First release
+
