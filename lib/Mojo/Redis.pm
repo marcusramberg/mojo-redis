@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = eval '0.9907';
+our $VERSION = '0.9908';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -176,6 +176,7 @@ sub subscribe {
       encoding => $self->encoding,
       protocol_redis => $self->protocol_redis,
       timeout => $self->timeout,
+      _connection => undef, # need to clear this when making a Subscription object from an active Redis object
     )->connect;
   }
 
@@ -847,4 +848,5 @@ Copyright (C) 2010-2011, Sergey Zasenko
 This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.
 
+=cut
 =cut

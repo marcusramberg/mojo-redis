@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9908   Tue Jun 18 13:13:20 2013
+       - Fix making a Subscription object from an active Redis object
+
 0.9907   Tue May  7 12:55:41 2013
        - Forgot to fix unittest
 
