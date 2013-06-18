@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9908';
+our $VERSION = '0.9910';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -43,7 +43,12 @@ sub timeout {
   my($self, $t) = @_;
   my $id = $self->{_connection};
 
-  $self->ioloop->stream($id)->timeout($t) if $id;
+  if(my $id = $self->{_connection}) {
+    if(my $stream = $self->ioloop->stream($id)) {
+      $stream->timeout($t);
+    }
+  }
+
   $self->{timeout} = $t;
   $self;
 }
@@ -849,4 +854,4 @@ This program is free software, you can redistribute it and/or modify it under
 the terms of the Artistic License version 2.0.
 
 =cut
-=cut
+

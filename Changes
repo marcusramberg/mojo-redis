@@ -1,5 +1,11 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9910   Tue Jun 18 20:00:09 2013
+       - 0.9909 was rubbish
+
+0.9909
+       - Fix timeout() might not have a stream, even though it has a stream id
+
 0.9908   Tue Jun 18 13:13:20 2013
        - Fix making a Subscription object from an active Redis object
 
