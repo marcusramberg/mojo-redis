@@ -415,7 +415,7 @@ application.
       },
       sub {
         my ($delay, $user) = @_;
-        $self->render_json($user);
+        $self->render(json=>$user);
       },
     );
   };
