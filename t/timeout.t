@@ -1,14 +1,10 @@
-#!/usr/bin/env perl
-
-use strict;
-use warnings;
-
-use Test::More;
+use Mojo::Base -strict;
 use Mojo::IOLoop;
+use Test::More;
 use utf8;
 
 plan skip_all => 'Setup $REDIS_SERVER' unless $ENV{REDIS_SERVER};
-plan tests => 2;
+plan tests => 3;
 
 use_ok 'Mojo::Redis';
 
@@ -27,3 +23,6 @@ $sub->on(message => sub {
 });
 
 Mojo::IOLoop->start;
+
+$redis->timeout(0);
+is $redis->timeout, 0, 'timeout is 0';
