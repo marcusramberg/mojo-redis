@@ -15,6 +15,7 @@ use if DEBUG, 'Data::Dumper';
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
 has encoding => 'UTF-8';
+has default_timeout => 300;
 
 has protocol_redis => sub {
   require Protocol::Redis;
@@ -39,7 +40,7 @@ has protocol => sub {
 sub connected { $_[0]->{_connection} ? 1 : 0 }
 
 sub timeout {
-  return $_[0]->{timeout} || 300 unless @_ > 1;
+  return defined $_[0]->{timeout} ? $_[0]->{timeout} : $_[0]->default_timeout unless @_ > 1;
   my($self, $t) = @_;
   my $id = $self->{_connection};
 
