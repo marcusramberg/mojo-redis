@@ -39,7 +39,7 @@ has protocol => sub {
 sub connected { $_[0]->{_connection} ? 1 : 0 }
 
 sub timeout {
-  return $_[0]->{timeout} || 300 unless @_ > 1;
+  return $_[0]->{timeout} // 300 unless @_ > 1;
   my($self, $t) = @_;
   my $id = $self->{_connection};
 
