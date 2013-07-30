@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9912   Tue Jul 30 22:05:53 2013
+       - Fix documentation
+         Contributor: akarelas
+
 0.9911   Tue Jul 30 22:01:52 2013
        - Fixed timeout() can now be set to 0.
          Contributor: gatitskiy

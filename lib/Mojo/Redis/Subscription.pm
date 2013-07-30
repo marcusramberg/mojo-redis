@@ -38,7 +38,7 @@ use Mojo::Base 'Mojo::Redis'; # This may change in the future!
 
 =head2 message
 
-  $self->on(message => sub { my($self, $channel, $message) = @_; ... });
+  $self->on(message => sub { my($self, $message, $channel) = @_; ... });
 
 This event receive the messages sent over the channel.
 

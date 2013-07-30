@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9911';
+our $VERSION = '0.9912';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
