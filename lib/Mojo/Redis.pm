@@ -374,7 +374,7 @@ Mojo::Redis - Asynchronous Redis client for L<Mojolicious>.
     sub {
       my ($redis, $res) = @_;
       if (defined $res) {
-        print "Got result: ", $res->[0], "\n";
+        print "Got result: ", $res, "\n";
       }
     }
   );
