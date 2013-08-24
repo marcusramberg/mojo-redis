@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-0.9913
+0.9913   Sat Aug 24 16:06:49 2013
        - Change default timeout to 0 (no timeout)
        - Try to detect invalid stream state
 

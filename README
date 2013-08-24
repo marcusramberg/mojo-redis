@@ -11,7 +11,7 @@ SYNOPSIS
         sub {
           my ($redis, $res) = @_;
           if (defined $res) {
-            print "Got result: ", $res->[0], "\n";
+            print "Got result: ", $res, "\n";
           }
         }
       );
@@ -131,7 +131,7 @@ ATTRIBUTES
         $redis      = $redis->timeout(100);
 
     Maximum amount of time in seconds a connection can be inactive before
-    being dropped, defaults to 300.
+    being dropped, defaults to 0 - meaning no timeout.
 
   encoding
         my $encoding = $redis->encoding;
