@@ -5,7 +5,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 13;
+use Test::More tests => 14;
 use Mojo::IOLoop;
 
 use_ok 'Mojo::Redis';
@@ -34,6 +34,8 @@ my $server = Mojo::IOLoop->server(
 my $redis =
   new_ok 'Mojo::Redis' => [server => "127.0.0.1:$port", timeout => 1];
 Mojo::IOLoop->timer(5 => sub { $redis->ioloop->stop }); #security valve
+
+is Mojo::Redis->new->timeout, 0, 'default timeout is 0';
 
 can_ok($redis, qw/
   append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set

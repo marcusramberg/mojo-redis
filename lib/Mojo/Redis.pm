@@ -39,7 +39,7 @@ has protocol => sub {
 sub connected { $_[0]->{_connection} ? 1 : 0 }
 
 sub timeout {
-  return $_[0]->{timeout} // 300 unless @_ > 1;
+  return $_[0]->{timeout} || 0 unless @_ > 1;
   my($self, $t) = @_;
   my $id = $self->{_connection};
 
@@ -501,7 +501,7 @@ object will be used.
     $redis      = $redis->timeout(100);
 
 Maximum amount of time in seconds a connection can be inactive before being
-dropped, defaults to C<300>.
+dropped, defaults to C<0> - meaning no timeout.
 
 =head2 encoding
 

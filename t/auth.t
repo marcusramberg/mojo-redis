@@ -4,7 +4,7 @@ use warnings;
 use Test::More;
 use Mojo::IOLoop;
 
-plan skip_all => 'Setup $REDIS_SERVER' unless $ENV{REDIS_SERVER};
+plan skip_all => 'Setup $REDIS_SERVER=127.0.0.1:6379' unless $ENV{REDIS_SERVER};
 use_ok 'Mojo::Redis';
 
 my $server = "redis://anything:INVALIDKEY\@$ENV{REDIS_SERVER}/123";

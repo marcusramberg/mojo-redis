@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9913
+       - Change default timeout to 0 (no timeout)
+
 0.9912   Tue Jul 30 22:05:53 2013
        - Fix documentation
          Contributor: akarelas
