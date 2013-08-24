@@ -119,9 +119,7 @@ sub connect {
         close => sub {
           $self->_inform_queue;
           $self->emit('close');
-          delete $self->{_message_queue};
-          delete $self->{_connecting};
-          delete $self->{_connection};
+          $self->disconnect;
         }
       );
       $stream->on(
@@ -163,8 +161,11 @@ sub connect {
 
 sub disconnect {
   my $self = shift;
+  my $id = delete $self->{_connection};
 
-  $self->ioloop->remove($self->{_connection}) if $self->{_connection};
+  delete $self->{_connecting};
+
+  $self->ioloop->remove($id) if $id and $self->ioloop;
   $self;
 }
 
@@ -253,9 +254,6 @@ sub execute {
 
 sub _send_next_message {
   my ($self) = @_;
-  my $id = $self->{_connection} or return;
-  my $stream = $self->ioloop->stream($id);
-  my $protocol = $self->protocol;
 
   $self->{_connecting} and return;
 
@@ -268,7 +266,7 @@ sub _send_next_message {
       push @$cmd_arg, {type => '$', data => $token};
     }
 
-    $self->_write($stream, { type => '*', data => $cmd_arg });
+    $self->_write({ type => '*', data => $cmd_arg }) or last;
   }
 }
 
@@ -329,15 +327,31 @@ sub _inform_queue {
 }
 
 sub _write {
-  my($self, $stream, $what) = @_;
-  my $message = $self->protocol->encode($what);
+  my($self, $what) = @_;
+  my $ioloop = $self->ioloop;
+  my($stream, $message);
 
+  unless($stream = $ioloop->stream($self->{_connection} || 0)) {
+    $self->emit(error => 'Internal error: stream is lost!');
+    $self->disconnect;
+    return;
+  }
+  if(!$ioloop->is_running and $stream->is_readable) {
+    $self->emit(error => 'Closing invalid stream');
+    $stream->close;
+    $self->disconnect;
+    return;
+  }
+
+  $message = $self->protocol->encode($what);
   $stream->write($message);
 
   if(DEBUG) {
     $message =~ s/\r?\n/','/g;
     warn "REDIS[@{[$self->{_connection}]}] <<< ['$message']\n";
   }
+
+  return 1;
 }
 
 sub _server_to_url {
