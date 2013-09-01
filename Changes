@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-0.9914
+0.9914   Sun Sep  1 20:08:16 2013
        - Fix leak into protocol_redis
 
 0.9913   Sat Aug 24 16:06:49 2013
