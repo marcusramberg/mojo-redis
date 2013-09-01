@@ -78,15 +78,13 @@ sub connect {
 
   push @{ $self->{_cb_queue} }, (sub { shift->emit(data => @_) }) x (@$channels - 1);
 
-  Scalar::Util::weaken $self;
   $self->execute(
     [ subscribe => @$channels ],
     sub {
-      shift; # we already got $self
+      my $self = shift;
+      Scalar::Util::weaken($self);
       $self->emit(data => @_);
-      $self->{protocol} = $self->protocol_redis->new(api => 1);
-      $self->{protocol} or Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/);
-      $self->{protocol}->on_message(sub {
+      $self->protocol->on_message(sub {
           my ($parser, $message) = @_;
           my $data = $self->_reencode_message($message) or return;
           $self->emit(data => $data);

@@ -25,7 +25,7 @@ has protocol => sub {
   my $self = shift;
   my $protocol = $self->protocol_redis->new(api => 1);
 
-  $protocol or Carp::croak(q/Protocol::Redis implementation doesn't support APIv1/);
+  $protocol or Carp::croak('protocol_redis implementation does not support APIv1');
   Scalar::Util::weaken($self);
   $protocol->on_message(
     sub {
