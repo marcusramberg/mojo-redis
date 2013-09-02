@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9914';
+our $VERSION = '0.9915';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -118,6 +118,7 @@ sub connect {
       );
       $stream->on(
         close => sub {
+          $self or return;
           $self->_inform_queue;
           $self->emit('close');
           $self->disconnect;

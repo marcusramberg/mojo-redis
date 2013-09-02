@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9915   Mon Sep  2 09:00:45 2013
+       - Fix Can't call method "_inform_queue" on an undefined value at
+         /Mojo/Redis.pm line 121.
+
 0.9914   Sun Sep  1 20:08:16 2013
        - Fix leak into protocol_redis
 
