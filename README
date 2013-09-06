@@ -254,6 +254,20 @@ REDIS METHODS
   persist
   ping
   protocol
+  psubscribe
+    Subscribes to channels matching the given patterns.
+
+       # Subscribes to foo, foobar, foo.whaz, etc.
+       my $psub = $redis->psubscribe('foo*');
+       $psub->on(message => sub {
+                my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
+              });
+
+       $redis->publish('foo.roo' => 'hi!');
+
+    psubscribe has the same interface options and capabilities as
+    "subscribe".
+
   publish
   quit
   randomkey
@@ -298,7 +312,8 @@ REDIS METHODS
     The above code will overtake the current connection (if any) and put
     this object into a pure subscribe mode.
 
-       $sub = $redis->subscribe('foo','bar')->on(data => sub {
+       my $sub = $redis->subscribe('foo','bar');
+       $sub->on(data => sub {
                 my ($sub, $data) = @_;
               });
 
