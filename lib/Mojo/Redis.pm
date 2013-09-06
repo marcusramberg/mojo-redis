@@ -173,6 +173,16 @@ sub disconnect {
 
 sub subscribe {
   my($self, @channels) = @_;
+  $self->_subscribe_generic('subscribe', @channels);
+}
+
+sub psubscribe {
+  my($self, @channels) = @_;
+  $self->_subscribe_generic('psubscribe', @channels);
+}
+
+sub _subscribe_generic {
+  my($self, $type, @channels) = @_;
   my $cb = ref $channels[-1] eq 'CODE' ? pop @channels : undef;
   my $n = 0;
 
@@ -184,6 +194,7 @@ sub subscribe {
       encoding => $self->encoding,
       protocol_redis => $self->protocol_redis,
       timeout => $self->timeout,
+      type => $type,
       _connection => undef, # need to clear this when making a Subscription object from an active Redis object
     )->connect;
   }
@@ -192,7 +203,7 @@ sub subscribe {
   Scalar::Util::weaken $self;
   push @{ $self->{_cb_queue} }, ($cb) x (@channels - 1);
   $self->execute(
-    [ subscribe => @channels ],
+    [ $type => @channels ],
     sub {
       shift; # we already got $self
       $self->$cb(@_);
@@ -713,6 +724,20 @@ See L</server> instead.
 
 =head2 protocol
 
+=head2 psubscribe
+
+Subscribes to channels matching the given patterns.
+
+   # Subscribes to foo, foobar, foo.whaz, etc.
+   my $psub = $redis->psubscribe('foo*');
+   $psub->on(message => sub {
+            my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
+          });
+
+   $redis->publish('foo.roo' => 'hi!');
+
+psubscribe has the same interface options and capabilities as L</subscribe>.
+
 =head2 publish
 
 =head2 quit
@@ -790,7 +815,8 @@ It's possible to subscribe in two ways:
 The above code will overtake the current connection (if any) and put this
 object into a pure subscribe mode.
 
-   $sub = $redis->subscribe('foo','bar')->on(data => sub {
+   my $sub = $redis->subscribe('foo','bar');
+   $sub->on(data => sub {
             my ($sub, $data) = @_;
           });
 

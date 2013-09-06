@@ -61,6 +61,14 @@ Holds an array ref of channel names which this object subscribe to.
 
 has channels => sub { [] };
 
+=head2 type
+
+Describes the sort of subscription this object is using: subscribe or psubscribe.
+
+=cut
+
+has type => 'subscribe';
+
 =head1 METHODS
 
 =head2 connect
@@ -73,13 +81,14 @@ This is called automatically from L<Mojo::Redis/subscribe>.
 sub connect {
   my $self = shift;
   my $channels = $self->channels;
+  my $command = $self->type;
 
   $self->SUPER::connect(@_);
 
   push @{ $self->{_cb_queue} }, (sub { shift->emit(data => @_) }) x (@$channels - 1);
 
   $self->execute(
-    [ subscribe => @$channels ],
+    [ $command => @$channels ],
     sub {
       my $self = shift;
       Scalar::Util::weaken($self);
@@ -89,6 +98,7 @@ sub connect {
           my $data = $self->_reencode_message($message) or return;
           $self->emit(data => $data);
           $self->emit(message => @$data[2, 1]) if $data->[0] eq 'message';
+          $self->emit(message => @$data[3, 2, 1]) if $data->[0] eq 'pmessage';
       });
     }
   );

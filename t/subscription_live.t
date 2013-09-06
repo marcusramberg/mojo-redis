@@ -10,7 +10,7 @@ use utf8;
 plan skip_all => 'Setup $REDIS_SERVER'
   unless $ENV{REDIS_SERVER};
 
-plan tests => 8;
+plan tests => 14;
 
 use_ok 'Mojo::Redis';
 
@@ -55,6 +55,47 @@ $s->on(
     }
     elsif($scb==4) {
       is_deeply $res, ['message', 'bar','once mo'], "fourth";
+    }
+  }
+);
+
+my $psub_data_cb=0;
+my $psub_message_cb=0;
+
+my $pattern_subscription = $redis->psubscribe('alpha*', 'beta*');
+
+$pattern_subscription->on(error => sub { warn $_[1]; $errors++ });
+
+$pattern_subscription->on(
+  message => sub {
+    my ($redis, $message, $channel, $pattern) = @_;
+    $psub_message_cb++;
+    if($psub_message_cb==1) {
+      is_deeply [$message, $channel, $pattern], ['Easy as 123', 'alpha.foo', 'alpha*'], "first pattern message";
+    }
+    elsif($psub_message_cb==2) {
+      is_deeply [$message, $channel, $pattern], ['Simple as do re mi', 'beta.foo', 'beta*'], "second pattern message";
+    }
+  }
+);
+
+$pattern_subscription->on(
+  data => sub {
+    my ($s,$res)=@_;
+    $psub_data_cb++;
+    if($psub_data_cb==1) {
+      is_deeply $res, ['psubscribe', 'alpha*', 1], "first pattern data, subscription ack #1";
+      $redis->publish('alpha.foo', 'Easy as 123');
+      $redis->publish('beta.foo', 'Simple as do re mi');
+    }
+    elsif($psub_data_cb==2) {
+      is_deeply $res, ['psubscribe', 'beta*', 2], "second pattern data, subscription ack #2";
+    }
+    elsif($psub_data_cb==3) {
+      is_deeply $res, ['pmessage', 'alpha*', 'alpha.foo', 'Easy as 123'], "third pattern data, message #1";
+    }
+    elsif($psub_data_cb==4) {
+      is_deeply $res, ['pmessage', 'beta*','beta.foo', 'Simple as do re mi'], "fourth pattern data, message #2";
       $redis->ioloop->stop;
     }
   }
