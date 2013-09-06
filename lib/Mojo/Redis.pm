@@ -182,7 +182,7 @@ sub psubscribe {
 }
 
 sub _subscribe_generic {
-  my($self, $subscription_type, @channels) = @_;
+  my($self, $type, @channels) = @_;
   my $cb = ref $channels[-1] eq 'CODE' ? pop @channels : undef;
   my $n = 0;
 
@@ -194,7 +194,7 @@ sub _subscribe_generic {
       encoding => $self->encoding,
       protocol_redis => $self->protocol_redis,
       timeout => $self->timeout,
-      subscription_type => $subscription_type,
+      type => $type,
       _connection => undef, # need to clear this when making a Subscription object from an active Redis object
     )->connect;
   }
@@ -203,7 +203,7 @@ sub _subscribe_generic {
   Scalar::Util::weaken $self;
   push @{ $self->{_cb_queue} }, ($cb) x (@channels - 1);
   $self->execute(
-    [ $subscription_type => @channels ],
+    [ $type => @channels ],
     sub {
       shift; # we already got $self
       $self->$cb(@_);
@@ -729,7 +729,8 @@ See L</server> instead.
 Subscribes to channels matching the given patterns.
 
    # Subscribes to foo, foobar, foo.whaz, etc.
-   $sub = $redis->psubscribe('foo*')->on(message => sub {
+   my $psub = $redis->psubscribe('foo*');
+   $psub->on(message => sub {
             my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
           });
 
@@ -814,7 +815,8 @@ It's possible to subscribe in two ways:
 The above code will overtake the current connection (if any) and put this
 object into a pure subscribe mode.
 
-   $sub = $redis->subscribe('foo','bar')->on(data => sub {
+   my $sub = $redis->subscribe('foo','bar');
+   $sub->on(data => sub {
             my ($sub, $data) = @_;
           });
 

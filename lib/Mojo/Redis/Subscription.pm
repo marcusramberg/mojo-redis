@@ -61,13 +61,13 @@ Holds an array ref of channel names which this object subscribe to.
 
 has channels => sub { [] };
 
-=head2 subscription_type
+=head2 type
 
 Describes the sort of subscription this object is using: subscribe or psubscribe.
 
 =cut
 
-has subscription_type => 'subscribe';
+has type => 'subscribe';
 
 =head1 METHODS
 
@@ -81,7 +81,7 @@ This is called automatically from L<Mojo::Redis/subscribe>.
 sub connect {
   my $self = shift;
   my $channels = $self->channels;
-  my $command = $self->subscription_type;
+  my $command = $self->type;
 
   $self->SUPER::connect(@_);
 
