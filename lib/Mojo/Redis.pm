@@ -173,6 +173,16 @@ sub disconnect {
 
 sub subscribe {
   my($self, @channels) = @_;
+  $self->_subscribe_generic('subscribe', @channels);
+}
+
+sub psubscribe {
+  my($self, @channels) = @_;
+  $self->_subscribe_generic('psubscribe', @channels);
+}
+
+sub _subscribe_generic {
+  my($self, $subscription_type, @channels) = @_;
   my $cb = ref $channels[-1] eq 'CODE' ? pop @channels : undef;
   my $n = 0;
 
@@ -184,6 +194,7 @@ sub subscribe {
       encoding => $self->encoding,
       protocol_redis => $self->protocol_redis,
       timeout => $self->timeout,
+      subscription_type => $subscription_type,
       _connection => undef, # need to clear this when making a Subscription object from an active Redis object
     )->connect;
   }
@@ -192,7 +203,7 @@ sub subscribe {
   Scalar::Util::weaken $self;
   push @{ $self->{_cb_queue} }, ($cb) x (@channels - 1);
   $self->execute(
-    [ subscribe => @channels ],
+    [ $subscription_type => @channels ],
     sub {
       shift; # we already got $self
       $self->$cb(@_);
@@ -712,6 +723,19 @@ See L</server> instead.
 =head2 ping
 
 =head2 protocol
+
+=head2 psubscribe
+
+Subscribes to channels matching the given patterns.
+
+   # Subscribes to foo, foobar, foo.whaz, etc.
+   $sub = $redis->psubscribe('foo*')->on(message => sub {
+            my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
+          });
+
+   $redis->publish('foo.roo' => 'hi!');
+
+psubscribe has the same interface options and capabilities as L</subscribe>.
 
 =head2 publish
 
