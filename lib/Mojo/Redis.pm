@@ -37,14 +37,14 @@ has protocol => sub {
   $protocol;
 };
 
-sub connected { $_[0]->{_connection} ? 1 : 0 }
+sub connected { $_[0]->{connection} ? 1 : 0 }
 
 sub timeout {
   return $_[0]->{timeout} || 0 unless @_ > 1;
   my($self, $t) = @_;
-  my $id = $self->{_connection};
+  my $id = $self->{connection};
 
-  if(my $id = $self->{_connection}) {
+  if(my $id = $self->{connection}) {
     if(my $stream = $self->ioloop->stream($id)) {
       $stream->timeout($t);
     }
@@ -91,8 +91,8 @@ sub connect {
   $db_index = ($url->path =~ /(\d+)/)[0] || '';
 
   $self->disconnect; # drop old connection
-  $self->{_connecting} = 1;
-  $self->{_connection} = $self->ioloop->client(
+  $self->{connecting} = 1;
+  $self->{connection} = $self->ioloop->client(
     { address => $url->host,
       port    => $url->port || 6379,
     },
@@ -108,12 +108,11 @@ sub connect {
       $stream->timeout($self->timeout);
       $stream->on(
         read => sub {
-          $self->protocol->parse($_[1]);
-
           if(DEBUG) {
             $_[1] =~ s/\r?\n/','/g;
-            warn "REDIS[@{[$self->{_connection}]}] >>> ['$_[1]']\n";
+            warn "REDIS[@{[$self->{connection}]}] >>> ['$_[1]']\n";
           }
+          $self->protocol->parse($_[1]);
         }
       );
       $stream->on(
@@ -121,7 +120,6 @@ sub connect {
           $self or return;
           $self->_inform_queue;
           $self->emit('close');
-          $self->disconnect;
         }
       );
       $stream->on(
@@ -129,7 +127,6 @@ sub connect {
           $self or return; # $self may be undef during global destruction
           $self->_inform_queue;
           $self->emit_safe(error => $_[1]);
-          $self->disconnect;
         }
       );
       $stream->on(
@@ -137,12 +134,11 @@ sub connect {
           $self or return; # $self may be undef during global destruction
           $self->_inform_queue;
           $self->emit_safe(error => 'Timeout');
-          $self->disconnect;
         }
       );
 
-      my $mqueue = $self->{_message_queue} ||= [];
-      my $cqueue = $self->{_cb_queue} ||= [];
+      my $mqueue = $self->{message_queue} ||= [];
+      my $cqueue = $self->{cb_queue} ||= [];
 
       if($db_index =~ /^\d+/) { # need to be before defined $auth below
         unshift @$mqueue, [ SELECT => $db_index ];
@@ -153,7 +149,7 @@ sub connect {
         unshift @$cqueue, sub {}; # no error handling needed. got on(error => ...)
       }
 
-      delete $self->{_connecting};
+      delete $self->{connecting};
       $self->_send_next_message;
     }
   );
@@ -163,9 +159,9 @@ sub connect {
 
 sub disconnect {
   my $self = shift;
-  my $id = delete $self->{_connection};
+  my $id = delete $self->{connection};
 
-  delete $self->{_connecting};
+  delete $self->{connecting};
 
   $self->ioloop->remove($id) if $id and $self->ioloop;
   $self;
@@ -195,13 +191,13 @@ sub _subscribe_generic {
       protocol_redis => $self->protocol_redis,
       timeout => $self->timeout,
       type => $type,
-      _connection => undef, # need to clear this when making a Subscription object from an active Redis object
+      connection => undef, # need to clear this when making a Subscription object from an active Redis object
     )->connect;
   }
 
   # need to attach new callback to the protocol object
   Scalar::Util::weaken $self;
-  push @{ $self->{_cb_queue} }, ($cb) x (@channels - 1);
+  push @{ $self->{cb_queue} }, ($cb) x (@channels - 1);
   $self->execute(
     [ $type => @channels ],
     sub {
@@ -238,8 +234,8 @@ sub execute {
     }
   }
 
-  my $mqueue = $self->{_message_queue} ||= [];
-  my $cqueue = $self->{_cb_queue}      ||= [];
+  my $mqueue = $self->{message_queue} ||= [];
+  my $cqueue = $self->{cb_queue}      ||= [];
 
   if($cb) {
     my @res;
@@ -259,7 +255,7 @@ sub execute {
   }
 
   push @$mqueue, @commands;
-  $self->connect unless $self->{_connection};
+  $self->connect unless $self->{connection};
   $self->_send_next_message;
 
   return $self;
@@ -268,9 +264,9 @@ sub execute {
 sub _send_next_message {
   my ($self) = @_;
 
-  $self->{_connecting} and return;
+  $self->{connecting} and return;
 
-  while (my $args = shift @{$self->{_message_queue}}) {
+  while (my $args = shift @{$self->{message_queue}}) {
     my $cmd_arg = [];
 
     foreach my $token (@$args) {
@@ -312,13 +308,13 @@ sub _reencode_message {
 sub _return_command_data {
   my ($self, $message) = @_;
   my $data = $self->_reencode_message($message);
-  my $cb = shift @{$self->{_cb_queue}};
+  my $cb = shift @{$self->{cb_queue}};
 
   eval {
     $self->$cb($data) if $cb;
     1;
   } or do {
-    my $err=$@;
+    my $err = $@;
     $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
   };
 }
@@ -326,17 +322,15 @@ sub _return_command_data {
 sub _inform_queue {
   my ($self) = @_;
 
-  for my $cb (@{$self->{_cb_queue}}) {
+  for my $cb (@{$self->{cb_queue}}) {
     eval {
       $self->$cb if $cb;
       1;
     } or do {
-      my $err=$@;
+      my $err = $@;
       $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
     };
   }
-
-  $self->{_queue} = [];
 }
 
 sub _write {
@@ -344,7 +338,7 @@ sub _write {
   my $ioloop = $self->ioloop;
   my($stream, $message);
 
-  unless($stream = $ioloop->stream($self->{_connection} || 0)) {
+  unless($stream = $ioloop->stream($self->{connection} || 0)) {
     $self->emit(error => 'Internal error: stream is lost!');
     $self->disconnect;
     return;
@@ -361,7 +355,7 @@ sub _write {
 
   if(DEBUG) {
     $message =~ s/\r?\n/','/g;
-    warn "REDIS[@{[$self->{_connection}]}] <<< ['$message']\n";
+    warn "REDIS[@{[$self->{connection}]}] <<< ['$message']\n";
   }
 
   return 1;

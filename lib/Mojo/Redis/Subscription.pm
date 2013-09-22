@@ -85,7 +85,7 @@ sub connect {
 
   $self->SUPER::connect(@_);
 
-  push @{ $self->{_cb_queue} }, (sub { shift->emit(data => @_) }) x (@$channels - 1);
+  push @{ $self->{cb_queue} }, (sub { shift->emit(data => @_) }) x (@$channels - 1);
 
   $self->execute(
     [ $command => @$channels ],
@@ -94,11 +94,11 @@ sub connect {
       Scalar::Util::weaken($self);
       $self->emit(data => @_);
       $self->protocol->on_message(sub {
-          my ($parser, $message) = @_;
-          my $data = $self->_reencode_message($message) or return;
-          $self->emit(data => $data);
-          $self->emit(message => @$data[2, 1]) if $data->[0] eq 'message';
-          $self->emit(message => @$data[3, 2, 1]) if $data->[0] eq 'pmessage';
+        my ($parser, $message) = @_;
+        my $data = $self->_reencode_message($message) or return;
+        $self->emit(data => $data);
+        $self->emit(message => @$data[2, 1]) if $data->[0] eq 'message';
+        $self->emit(message => @$data[3, 2, 1]) if $data->[0] eq 'pmessage';
       });
     }
   );
