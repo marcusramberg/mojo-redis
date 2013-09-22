@@ -339,12 +339,10 @@ sub _write {
   my($stream, $message);
 
   unless($stream = $ioloop->stream($self->{connection} || 0)) {
-    $self->emit(error => 'Internal error: stream is lost!');
     $self->disconnect;
     return;
   }
   if(!$ioloop->is_running and $stream->is_readable) {
-    $self->emit(error => 'Closing invalid stream');
     $stream->close;
     $self->disconnect;
     return;
