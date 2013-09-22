@@ -324,7 +324,7 @@ sub _inform_queue {
 
   for my $cb (@{$self->{cb_queue}}) {
     eval {
-      $self->$cb if $cb;
+      $self->$cb(undef) if $cb;
       1;
     } or do {
       my $err = $@;
