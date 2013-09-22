@@ -331,6 +331,9 @@ sub _inform_queue {
       $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
     };
   }
+
+  delete $self->{cb_queue};
+  delete $self->{message_queue};
 }
 
 sub _write {
