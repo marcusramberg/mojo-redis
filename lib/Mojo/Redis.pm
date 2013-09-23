@@ -100,8 +100,7 @@ sub connect {
       my ($loop, $error, $stream) = @_;
 
       if($error) {
-          $self->_inform_queue;
-          $self->emit_safe(error => $error);
+          $self->_inform_queue(error => $error);
           return;
       }
 
@@ -125,15 +124,13 @@ sub connect {
       $stream->on(
         error => sub {
           $self or return; # $self may be undef during global destruction
-          $self->_inform_queue;
-          $self->emit_safe(error => $_[1]);
+          $self->_inform_queue(error => $_[1]);
         }
       );
       $stream->on(
         timeout => sub {
           $self or return; # $self may be undef during global destruction
-          $self->_inform_queue;
-          $self->emit_safe(error => 'Timeout');
+          $self->_inform_queue(error => 'Timeout');
         }
       );
 
@@ -320,9 +317,13 @@ sub _return_command_data {
 }
 
 sub _inform_queue {
-  my ($self) = @_;
+  my ($self, @emit) = @_;
+  my $cb_queue = delete $self->{cb_queue} || [];
 
-  for my $cb (@{$self->{cb_queue}}) {
+  delete $self->{message_queue};
+  $self->emit(@emit) if @emit;
+
+  for my $cb (@$cb_queue) {
     eval {
       $self->$cb(undef) if $cb;
       1;
@@ -331,9 +332,6 @@ sub _inform_queue {
       $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
     };
   }
-
-  delete $self->{cb_queue};
-  delete $self->{message_queue};
 }
 
 sub _write {

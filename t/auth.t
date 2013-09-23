@@ -13,13 +13,17 @@ my($sub, @errors);
 
 $redis->on(error => sub { push @errors, $_[1] });
 $redis->execute(ping => sub {});
-$sub = $redis->subscribe('foo');
-$sub->on(error => sub { push @errors, $_[1] });
-$redis->quit(sub { shift->ioloop->stop; })->ioloop->start;
+$redis->quit(sub { shift->ioloop->stop })->ioloop->start;
 
-like $errors[0], qr{^ERR.*AUTH}, 'could not login to subscribe' or diag $errors[0];
-like $errors[1], qr{^ERR.*DB}, 'could not select db 123 on subscribe' or diag $errors[1];
-like $errors[2], qr{^ERR.*AUTH}, 'could not login to redis' or diag $errors[2];
-like $errors[3], qr{^ERR.*DB}, 'could not select db 123 on redis' or diag $errors[3];
+like $errors[0], qr{^ERR.*AUTH}, 'could not login to redis';
+like $errors[1], qr{^ERR.*DB}, 'could not select db 123 on redis';
+
+@errors = ();
+$sub = $redis->subscribe('foo');
+$sub->on(error => sub { push @errors, $_[1]; shift->ioloop->stop });
+$sub->ioloop->start;
+
+like $errors[0], qr{^ERR.*AUTH}, 'could not login to subscribe';
+like $errors[1], qr{^ERR.*DB}, 'could not select db 123 on subscribe';
 
 done_testing;
