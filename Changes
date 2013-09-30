@@ -1,6 +1,6 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-0.9917
+0.9917   Mon Sep 30 15:51:31 2013
        - Remove events which cause iternal loop during global destruction
        - Fix clear message queue on disconnect()
        - Fix _inform_queue need to pass on "undef" to the callbacks
