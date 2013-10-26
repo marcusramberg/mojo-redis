@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9918   Sat Oct 26 15:49:53 2013
+       - Add MYMETA* to MANIFEST.SKIP
+
 0.9917   Mon Sep 30 15:51:31 2013
        - Remove events which cause iternal loop during global destruction
        - Fix clear message queue on disconnect()
