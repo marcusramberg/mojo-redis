@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9918';
+our $VERSION = '0.9919';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -10,7 +10,6 @@ use Scalar::Util ();
 use Encode       ();
 use Carp;
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
-use if DEBUG, 'Data::Dumper';
 
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
@@ -107,11 +106,12 @@ sub connect {
       $stream->timeout($self->timeout);
       $stream->on(
         read => sub {
+          my($stream, $chunk) = @_;
+          $self->protocol->parse($chunk);
           if(DEBUG) {
-            $_[1] =~ s/\r?\n/','/g;
-            warn "REDIS[@{[$self->{connection}]}] >>> ['$_[1]']\n";
+            $chunk =~ s/\r?\n/','/g;
+            warn "REDIS[@{[$self->{connection}]}] >>> ['$chunk']\n";
           }
-          $self->protocol->parse($_[1]);
         }
       );
       $stream->on(

@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9919   Mon Oct 28 13:27:43 2013
+       - Fix printing debug messages to STDERR
+
 0.9918   Sat Oct 26 15:49:53 2013
        - Add MYMETA* to MANIFEST.SKIP
 
