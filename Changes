@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9920   Wed Nov 20 13:22:43 2013
+       - Restructured tests.
+
 0.9919   Mon Oct 28 13:27:43 2013
        - Fix printing debug messages to STDERR
 
