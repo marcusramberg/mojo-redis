@@ -1,149 +1,97 @@
-# Because of two async applications working together this tests look ugly
-# if you want to examine Mojo::Redis API take a look at t/redis_live.t
 use Mojo::Base -strict;
 use Mojo::IOLoop;
 use Mojo::Redis;
 use Test::More;
 
-plan tests => 7;
+plan tests => 6;
 
+my(@chunk, @write, $server, $stream);
 my $port = Mojo::IOLoop->generate_port;
-my($sbuffer1, $sbuffer2, $sbuffer3);
-my($r, $r1, $r2, $r4);
-my($server, $curr_stream);
-
-$r4 = 'wrong result';
+my $n = 0;
 
 $server = Mojo::IOLoop->server(
             {
               port => $port,
             },
             sub {
-              my ($loop, $stream) = @_;
-              $curr_stream = $stream;
-              $stream->once(read => sub {
-              my ($stream, $chunk) = @_;
-              $sbuffer1 = $chunk;
-              $stream->write("\$2\r\nok\r\n");
+              $stream = $_[1];
+              $stream->on(read => sub {
+                push @chunk, split /\r\n/, $_[1];
               });
             },
           );
 
-my $redis = Mojo::Redis->new(server => "127.0.0.1:$port");
+my $redis = Mojo::Redis->new(server => "127.0.0.1:$port", timeout => 2);
 
-Mojo::IOLoop->timer(5 => sub {
-  diag "SHOULD NEVER COME TO A TIMEOUT!";
+Mojo::IOLoop->recurring(0.05 => sub {
+  @write or return;
+  $stream or return;
+  $stream->write(sprintf "%s\r\n", shift @write); # write in chunks
+});
+
+$redis->on(error => sub {
+  my($redis, $error) = @_;
+  diag $error;
   $redis->ioloop->stop;
 });
 
-$redis->execute(
-  get => 'test',
-  sub {
-    my ($redis, $result) = @_;
-    $r = $result;
-    &test2;
+{
+  queue(
+    method => 'get',
+    args => [ 'some_key' ],
+    result => [ 'some data' ],
+    chunk => [ '*2', '$3', 'GET', '$8', 'some_key' ],
+  );
+
+  @write = ('$9', 'some data');
+  $redis->ioloop->start;
+}
+
+{
+  queue(
+    method => 'execute',
+    args => [
+      [ set => 'name' => 'Batman' ],
+      [ set => 'age' => 25 ],
+    ],
+    result => [ 'OK', 'OK' ],
+    chunk => [
+      '*3', '$3', 'SET', '$4', 'name', '$6', 'Batman',
+      '*3', '$3', 'SET', '$3', 'age', '$2', 25,
+    ],
+  );
+  queue(
+    method => 'get',
+    args => [ 'name' ],
+    result => [ 'Batman' ],
+    chunk => [ '*2', '$3', 'GET', '$4', 'name' ],
+  );
+
+  @write = (
+    '$2', 'OK',
+    '$2', 'OK',
+    '$6', 'Batman',
+  );
+  $redis->ioloop->start;
+}
+
+sub queue {
+  my %args = @_;
+  my $method = $args{method};
+  my @args = @{ $args{args} };
+  my $size = @{ $args{chunk} };
+
+  for(@args) {
+    $_ = join ',', @{ $_ } if ref $_ eq 'ARRAY';
   }
-)->ioloop->start;
 
+  $n++;
+  $redis->$method(@{ $args{args} }, sub {
+    my($redis, @result) = @_;
 
-is $sbuffer1, "*2\r\n\$3\r\nGET\r\n\$4\r\ntest\r\n", 'input command';
-is $r, 'ok', 'result';
+    is_deeply \@result, $args{result}, "$method @args result";
+    is_deeply [splice @chunk, 0, $size, ()], $args{chunk}, "$method @args chunk";
 
-is $sbuffer2,
-  "*2\r\n\$3\r\nGET\r\n\$5\r\ntest1\r\n*2\r\n\$3\r\nGET\r\n\$5\r\ntest2\r\n",
-  'input commands';
-is $r1, 'ok1', 'first command';
-is $r2, 'ok2', 'second command';
-
-is $sbuffer3, "*3\r\n\$3\r\nSET\r\n\$3\r\nkey\r\n\$5\r\nvalue\r\n",
-  'fast command';
-
-is $r4, undef, 'error result';
-
-# Multiple pipelined commands
-sub test2 {
-  $curr_stream->once(
-    read => sub {
-      my ($stream, $chunk) = @_;
-      $sbuffer2 .= $chunk;
-
-      # Wait both commands to come
-      if ($sbuffer2 =~ m{test2}) {
-        $stream->on(read => sub { });
-
-        # Half of first command
-        $stream->write(
-          "\$3\r\nok",
-          sub {
-            Mojo::IOLoop->timer(
-              0.1 => sub {
-                my ($self) = @_;
-
-                # Another half with first half of second
-                $stream->write(
-                  "1\r\n\$3",
-                  sub {
-                    Mojo::IOLoop->timer(
-                      0.1 => sub {
-                        my ($self) = @_;
-
-                        # Done
-                        $stream->write(
-                          "\r\nok2\r\n");
-                      }
-                    );
-                  }
-                );
-              }
-            );
-          }
-        );
-      }
-    }
-  );
-  $redis->execute(
-    get => 'test1',
-    sub {
-      my ($redis, $result) = @_;
-      $r1 = $result;
-    }
-  )->execute(
-    get => 'test2',
-    sub {
-      my ($redis, $result) = @_;
-      $r2 = $result;
-      &check3;
-    }
-  );
-}
-
-sub check3 {
-  $curr_stream->once(
-    read => sub {
-      my ($stream, $chunk) = @_;
-      $sbuffer3 = $chunk;
-
-      &check4;
-    }
-  );
-
-  $redis->set(key => 'value', sub { });
-}
-
-sub check4 {
-  $curr_stream->once(
-    read => sub {
-      my ($stream, $chunk) = @_;
-      Mojo::IOLoop->remove($server);
-     }
-  );
-
-  $redis->execute(
-    get => 'test',
-    sub {
-      my ($redis, $result) = @_;
-      $r4      = $result;
-      Mojo::IOLoop->stop;
-    }
-  );
+    $redis->ioloop->stop if --$n == 0;
+  });
 }
