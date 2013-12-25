@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9920';
+our $VERSION = '0.9921';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -107,11 +107,12 @@ sub connect {
       $stream->on(
         read => sub {
           my($stream, $chunk) = @_;
-          $self->protocol->parse($chunk);
           if(DEBUG) {
-            $chunk =~ s/\r?\n/','/g;
-            warn "REDIS[@{[$self->{connection}]}] >>> ['$chunk']\n";
+            my $c2 = $chunk;
+            $c2 =~ s/\r?\n/','/g;
+            warn "REDIS[@{[$self->{connection}]}] >>> ['$c2']\n";
           }
+          $self->protocol->parse($chunk);
         }
       );
       $stream->on(

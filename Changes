@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9921   Wed Dec 25 10:15:18 2013
+       - Fix "Use of uninitialized value in join or string at Mojo/Redis.pm
+         line 113." if $ENV{MOJO_REDIS_DEBUG};
+
 0.9920   Wed Nov 20 13:22:43 2013
        - Restructured tests.
 
