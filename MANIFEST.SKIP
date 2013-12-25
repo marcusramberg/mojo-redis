@@ -6,3 +6,4 @@
 ^\.git
 README.pod
 MYMETA*
+.perltidyrc
