@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9922   Wed Dec 25 10:15:18 2013
+       - Made connected() more intelligent
+
 0.9921   Wed Dec 25 10:15:18 2013
        - Fix "Use of uninitialized value in join or string at Mojo/Redis.pm
          line 113." if $ENV{MOJO_REDIS_DEBUG};
@@ -45,7 +48,7 @@ This file documents the revision history for Perl extension Mojo::Redis
 0.9910   Tue Jun 18 20:00:09 2013
        - 0.9909 was rubbish
 
-0.9909
+0.9909   Thu Apr 10 10:45:36 2014
        - Fix timeout() might not have a stream, even though it has a stream id
 
 0.9908   Tue Jun 18 13:13:20 2013

@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9921';
+our $VERSION = '0.9922';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -36,7 +36,12 @@ has protocol => sub {
   $protocol;
 };
 
-sub connected { $_[0]->{connection} ? 1 : 0 }
+sub connected {
+  my $self = shift;
+  return 0 unless my $ioloop = $self->ioloop;
+  return 1 if $self->{connection} and $ioloop->stream($self->{connection});
+  return 0;
+}
 
 sub timeout {
   return $_[0]->{timeout} || 0 unless @_ > 1;
