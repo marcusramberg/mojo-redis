@@ -462,7 +462,35 @@ __END__
 
 Mojo::Redis - Asynchronous Redis client for L<Mojolicious>.
 
+=head1 DESCRIPTION
+
+L<Mojo::Redis> is an asynchronous L<Redis|http://redis.io> client for the
+L<Mojolicious> framework.
+
+Currently we support these Redis commands in addition to the L</METHODS>
+described in this module.
+
+  append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
+  config_resetstat dbsize debug_object debug_segfault decr decrby del discard
+  echo exec exists expire expireat flushall flushdb get getbit getrange getset
+  hdel hexists hget hgetall hincrby hkeys hlen hmget hmset hset hsetnx hvals
+  incr incrby info keys lastsave lindex linsert llen lpop lpush lpushx lrange
+  lrem lset ltrim mget monitor move mset msetnx multi persist ping
+  publish quit randomkey rename renamenx rpop rpoplpush rpush
+  rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
+  setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
+  spop srandmember srem strlen sunion sunionstore sync ttl type
+  unwatch watch zadd zcard zcount zincrby zinterstore zrange
+  zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
+  zrevrangebyscore zrevrank zscore zunionstore
+
+If a command is missing, then please file a
+L<bug report|https://github.com/marcusramberg/mojo-redis/issues> and use
+L</execute> in the meanwhile.
+
 =head1 SYNOPSIS
+
+=head2 Standalone
 
   use Mojo::Redis;
 
@@ -496,8 +524,7 @@ Mojo::Redis - Asynchronous Redis client for L<Mojolicious>.
   # Start IOLoop (in case it is not started yet)
   $redis->ioloop->start;
 
-Create new Mojo::IOLoop instance if you need to get blocked in a Mojolicious
-application.
+=head2 Mojolicious::Lite example
 
   use Mojolicious::Lite;
   use Mojo::Redis;
@@ -518,6 +545,8 @@ application.
       },
     );
   };
+
+=head2 Websocket example
 
   websocket '/messages' => sub {
     my $self = shift;
@@ -546,10 +575,6 @@ application.
   };
 
   app->start;
-
-=head1 DESCRIPTION
-
-L<Mojo::Redis> is an asynchronous client to L<Redis|http://redis.io> for Mojo.
 
 =head1 EVENTS
 
@@ -696,142 +721,6 @@ Execute specified command on C<Redis> server. If error occurred during
 request $result will be set to undef, error string can be obtained with
 the L</error> event.
 
-=head1 REDIS METHODS
-
-=head2 append
-
-=head2 auth
-
-See L</server> instead.
-
-=head2 bgrewriteaof
-
-=head2 bgsave
-
-=head2 blpop
-
-=head2 brpop
-
-=head2 brpoplpush
-
-=head2 config_get
-
-=head2 config_resetstat
-
-=head2 config_set
-
-=head2 connected
-
-=head2 dbsize
-
-=head2 debug_object
-
-=head2 debug_segfault
-
-=head2 decr
-
-=head2 decrby
-
-=head2 del
-
-=head2 discard
-
-=head2 disconnect
-
-=head2 echo
-
-=head2 exec
-
-=head2 exists
-
-=head2 expire
-
-=head2 expireat
-
-=head2 flushall
-
-=head2 flushdb
-
-=head2 get
-
-=head2 getbit
-
-=head2 getrange
-
-=head2 getset
-
-=head2 hdel
-
-=head2 hexists
-
-=head2 hget
-
-=head2 hgetall
-
-=head2 hincrby
-
-=head2 hkeys
-
-=head2 hlen
-
-=head2 hmget
-
-=head2 hmset
-
-=head2 hset
-
-=head2 hsetnx
-
-=head2 hvals
-
-=head2 incr
-
-=head2 incrby
-
-=head2 info
-
-=head2 keys
-
-=head2 lastsave
-
-=head2 lindex
-
-=head2 linsert
-
-=head2 llen
-
-=head2 lpop
-
-=head2 lpush
-
-=head2 lpushx
-
-=head2 lrange
-
-=head2 lrem
-
-=head2 lset
-
-=head2 ltrim
-
-=head2 mget
-
-=head2 monitor
-
-=head2 move
-
-=head2 mset
-
-=head2 msetnx
-
-=head2 multi
-
-=head2 persist
-
-=head2 ping
-
-=head2 protocol
-
 =head2 psubscribe
 
 Subscribes to channels matching the given patterns.
@@ -845,72 +734,6 @@ Subscribes to channels matching the given patterns.
    $redis->publish('foo.roo' => 'hi!');
 
 psubscribe has the same interface options and capabilities as L</subscribe>.
-
-=head2 publish
-
-=head2 quit
-
-=head2 randomkey
-
-=head2 rename
-
-=head2 renamenx
-
-=head2 rpop
-
-=head2 rpoplpush
-
-=head2 rpush
-
-=head2 rpushx
-
-=head2 sadd
-
-=head2 save
-
-=head2 scard
-
-=head2 sdiff
-
-=head2 sdiffstore
-
-=head2 select
-
-See L</server> instead.
-
-=head2 set
-
-=head2 setbit
-
-=head2 setex
-
-=head2 setnx
-
-=head2 setrange
-
-=head2 shutdown
-
-=head2 sinter
-
-=head2 sinterstore
-
-=head2 sismember
-
-=head2 slaveof
-
-=head2 smembers
-
-=head2 smove
-
-=head2 sort
-
-=head2 spop
-
-=head2 srandmember
-
-=head2 srem
-
-=head2 strlen
 
 =head2 subscribe
 
@@ -931,52 +754,6 @@ object into a pure subscribe mode.
 Opens up a new connection that subscribes to the given pubsub channels.
 Returns an instance of L<Mojo::Redis::Subscription>. The existing C<$redis>
 object can still be used to L</get> data as expected.
-
-=head2 sunion
-
-=head2 sunionstore
-
-=head2 sync
-
-=head2 ttl
-
-=head2 type
-
-=head2 unwatch
-
-=head2 watch
-
-=head2 zadd
-
-=head2 zcard
-
-=head2 zcount
-
-=head2 zincrby
-
-=head2 zinterstore
-
-=head2 zrange
-
-=head2 zrangebyscore
-
-=head2 zrank
-
-=head2 zrem
-
-=head2 zremrangebyrank
-
-=head2 zremrangebyscore
-
-=head2 zrevrange
-
-=head2 zrevrangebyscore
-
-=head2 zrevrank
-
-=head2 zscore
-
-=head2 zunionstore
 
 =head1 SEE ALSO
 
