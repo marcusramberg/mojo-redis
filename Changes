@@ -1,7 +1,10 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-0.9923   Fri Apr 11 16:34:00 2014
+0.9924   Fri Apr 11 19:38:12 2014
+       - Allow just $redis->server($hostname) without port
        - Cleaned up documentation
+
+0.9923   Fri Apr 11 16:34:00 2014
        - Add support for $redis->on(message => @channels => $cb) events
        - Add support for $redis->on(blpop => @list_names => $cb) events
        - Add support for $redis->on(brpop => @list_names => $cb) events

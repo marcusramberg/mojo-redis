@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9923';
+our $VERSION = '0.9924';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -13,9 +13,16 @@ use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
 
 my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop message );
 
-has server   => '127.0.0.1:6379';
-has ioloop   => sub { Mojo::IOLoop->singleton };
+sub connected {
+  my $self = shift;
+  return 0 unless my $ioloop = $self->ioloop;
+  return 1 if $self->{connection} and $ioloop->stream($self->{connection});
+  return 0;
+}
+
 has encoding => 'UTF-8';
+has ioloop   => sub { Mojo::IOLoop->singleton };
+has server   => '127.0.0.1:6379';
 
 has protocol_redis => sub {
   require Protocol::Redis;
@@ -37,13 +44,6 @@ has protocol => sub {
 
   $protocol;
 };
-
-sub connected {
-  my $self = shift;
-  return 0 unless my $ioloop = $self->ioloop;
-  return 1 if $self->{connection} and $ioloop->stream($self->{connection});
-  return 0;
-}
 
 sub timeout {
   return $_[0]->{timeout} || 0 unless @_ > 1;
@@ -106,8 +106,8 @@ sub connect {
       my ($loop, $error, $stream) = @_;
 
       if($error) {
-          $self->_inform_queue(error => $error);
-          return;
+        $self->_inform_queue(error => $error);
+        return;
       }
 
       $stream->timeout($self->timeout);
@@ -636,44 +636,36 @@ To unsubscribe you need to do one of these:
 
 L<Mojo::Redis> implements the following attributes.
 
-=head2 server
+=head2 connected
 
-    my $server = $redis->server;
-    $redis     = $redis->server('127.0.0.1:6379');
-    $redis     = $redis->server('redis://anything:PASSWORD@127.0.0.1:6379/DB_INDEX');
+  $bool = $self->connected;
 
-C<Redis> server connection string, defaults to '127.0.0.1:6379'. The
-latter can be used if you want L<Mojo::Redis> to automatically run L</auth>
-with C<PASSWORD> and/or L</select> with C<DB_INDEX> on connect. Both AUTH
-and DB_INDEX are optional.
+Returns true if we are indeed connected to the redis server.
+
+=head2 encoding
+
+  $encoding = $redis->encoding;
+  $redis    = $redis->encoding('UTF-8');
+
+Encoding used for stored data, defaults to C<UTF-8>.
 
 =head2 ioloop
 
-    my $ioloop = $redis->ioloop;
-    $redis     = $redis->ioloop(Mojo::IOLoop->new);
+  $ioloop = $redis->ioloop;
+  $redis  = $redis->ioloop(Mojo::IOLoop->new);
 
 Loop object to use for io operations, by default a L<Mojo::IOLoop> singleton
 object will be used.
 
-=head2 timeout
+=head2 protocol
 
-    my $timeout = $redis->timeout;
-    $redis      = $redis->timeout(100);
-
-Maximum amount of time in seconds a connection can be inactive before being
-dropped, defaults to C<0> - meaning no timeout.
-
-=head2 encoding
-
-    my $encoding = $redis->encoding;
-    $redis       = $redis->encoding('UTF-8');
-
-Encoding used for stored data, defaults to C<UTF-8>.
+Holds a object of L</protocol_redis>. This attribute should be considered
+internal.
 
 =head2 protocol_redis
 
-    use Protocol::Redis::XS;
-    $redis->protocol_redis("Protocol::Redis::XS");
+  use Protocol::Redis::XS;
+  $redis->protocol_redis("Protocol::Redis::XS");
 
 L<Protocol::Redis> implementation' constructor for parsing. By default
 L<Protocol::Redis> will be used. Parser library must support
@@ -681,79 +673,106 @@ L<APIv1|Protocol::Redis/APIv1>.
 
 Using L<Protocol::Redis::XS> instead of default choice can speedup parsing.
 
+=head2 server
+
+  $server = $redis->server;
+  $redis  = $redis->server('127.0.0.1:6379');
+  $redis  = $redis->server('redis://anything:PASSWORD@127.0.0.1:6379/DB_INDEX');
+
+C<Redis> server connection string, defaults to "127.0.0.1:6379". The
+latter can be used if you want L<Mojo::Redis> to automatically run L</auth>
+with C<PASSWORD> and/or L</select> with C<DB_INDEX> on connect. Both AUTH
+and DB_INDEX are optional.
+
+=head2 timeout
+
+  $seconds = $redis->timeout;
+  $redis   = $redis->timeout(100);
+
+Maximum amount of time in seconds a connection can be inactive before being
+dropped, defaults to C<0> - meaning no timeout.
+
 =head1 METHODS
-
-L<Mojo::Redis> supports Redis' methods.
-
-    $redis->set(key => 'value);
-    $redis->get(key => sub { ... });
-
-For more details take a look at C<execute> method.
-
-Also L<Mojo::Redis> implements the following ones.
 
 =head2 connect
 
-    $redis = $redis->connect;
+  $redis = $redis->connect;
 
 Connect to C<Redis> server.
 
+=head2 disconnect
+
+  $redis = $self->disconnect;
+
+Used to disconnect from the server. This method is automatically called when
+this object goes out of scope.
+
 =head2 execute
 
-    $redis = $redis->execute("ping" => sub {
-        my ($redis, $result) = @_;
+  $redis = $redis->execute("ping" => sub {
+             my ($redis, $result) = @_;
+             # Process $result
+           });
 
-        # Process result
-    });
-    $redis->execute(lrange => "test", 0, -1 => sub {...});
-    $redis->execute(set => test => "test_ok");
-    $redis->execute(
-        [lrange => "test", 0, -1],
-        [get => "test"],
-        [hmset => foo => { one => 1, two => 2 }],
-        sub {
-            my($redis, $lrange, $get, $hmset) = @_;
-            # ...
-        },
-    );
+  $redis->execute(lrange => "test", 0, -1 => sub {...});
+  $redis->execute(set => test => "test_ok");
+
+  $redis->execute(
+    [lrange => "test", 0, -1],
+    [get => "test"],
+    [hmset => foo => { one => 1, two => 2 }],
+    sub {
+      my($redis, $lrange, $get, $hmset) = @_;
+      # ...
+    },
+  );
 
 Execute specified command on C<Redis> server. If error occurred during
 request $result will be set to undef, error string can be obtained with
 the L</error> event.
 
+=head2 on
+
+Same as L<Mojo::EventEmitter/on>, except it allows special events such as
+L</blpop>, L</brpop> and L</message>.
+
 =head2 psubscribe
 
 Subscribes to channels matching the given patterns.
 
-   # Subscribes to foo, foobar, foo.whaz, etc.
-   my $psub = $redis->psubscribe('foo*');
-   $psub->on(message => sub {
-            my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
-          });
+  # Subscribes to foo, foobar, foo.whaz, etc.
+  my $psub = $redis->psubscribe('foo*');
+  $psub->on(message => sub {
+    my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
+  });
 
-   $redis->publish('foo.roo' => 'hi!');
+  $redis->publish('foo.roo' => 'hi!');
 
-psubscribe has the same interface options and capabilities as L</subscribe>.
+L</psubscribe> has the same interface options and capabilities as L</subscribe>.
 
 =head2 subscribe
 
 It's possible to subscribe in two ways:
 
-   $self = $redis->subscribe('foo','bar' => sub {
-     my ($redis, $data) = @_;
-   });
+  $redis = $redis->subscribe('foo','bar' => sub {
+             my ($redis, $data) = @_;
+           });
 
 The above code will overtake the current connection (if any) and put this
 object into a pure subscribe mode.
 
-   my $sub = $redis->subscribe('foo','bar');
-   $sub->on(data => sub {
-            my ($sub, $data) = @_;
-          });
+  my $sub = $redis->subscribe('foo','bar');
+  $sub->on(data => sub {
+    my ($sub, $data) = @_;
+  });
 
 Opens up a new connection that subscribes to the given pubsub channels.
 Returns an instance of L<Mojo::Redis::Subscription>. The existing C<$redis>
 object can still be used to L</get> data as expected.
+
+=head2 unsubscribe
+
+The opposite as L</on>. See also L<Mojo::EventEmitter/unsubscribe>.
 
 =head1 SEE ALSO
 

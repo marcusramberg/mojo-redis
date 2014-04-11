@@ -163,114 +163,128 @@ EVENTS
 ATTRIBUTES
     Mojo::Redis implements the following attributes.
 
-  server
-        my $server = $redis->server;
-        $redis     = $redis->server('127.0.0.1:6379');
-        $redis     = $redis->server('redis://anything:PASSWORD@127.0.0.1:6379/DB_INDEX');
+  connected
+      $bool = $self->connected;
 
-    "Redis" server connection string, defaults to '127.0.0.1:6379'. The
-    latter can be used if you want Mojo::Redis to automatically run "auth"
-    with "PASSWORD" and/or "select" with "DB_INDEX" on connect. Both AUTH
-    and DB_INDEX are optional.
+    Returns true if we are indeed connected to the redis server.
+
+  encoding
+      $encoding = $redis->encoding;
+      $redis    = $redis->encoding('UTF-8');
+
+    Encoding used for stored data, defaults to "UTF-8".
 
   ioloop
-        my $ioloop = $redis->ioloop;
-        $redis     = $redis->ioloop(Mojo::IOLoop->new);
+      $ioloop = $redis->ioloop;
+      $redis  = $redis->ioloop(Mojo::IOLoop->new);
 
     Loop object to use for io operations, by default a Mojo::IOLoop
     singleton object will be used.
 
-  timeout
-        my $timeout = $redis->timeout;
-        $redis      = $redis->timeout(100);
-
-    Maximum amount of time in seconds a connection can be inactive before
-    being dropped, defaults to 0 - meaning no timeout.
-
-  encoding
-        my $encoding = $redis->encoding;
-        $redis       = $redis->encoding('UTF-8');
-
-    Encoding used for stored data, defaults to "UTF-8".
+  protocol
+    Holds a object of "protocol_redis". This attribute should be considered
+    internal.
 
   protocol_redis
-        use Protocol::Redis::XS;
-        $redis->protocol_redis("Protocol::Redis::XS");
+      use Protocol::Redis::XS;
+      $redis->protocol_redis("Protocol::Redis::XS");
 
     Protocol::Redis implementation' constructor for parsing. By default
     Protocol::Redis will be used. Parser library must support APIv1.
 
     Using Protocol::Redis::XS instead of default choice can speedup parsing.
 
+  server
+      $server = $redis->server;
+      $redis  = $redis->server('127.0.0.1:6379');
+      $redis  = $redis->server('redis://anything:PASSWORD@127.0.0.1:6379/DB_INDEX');
+
+    "Redis" server connection string, defaults to "127.0.0.1:6379". The
+    latter can be used if you want Mojo::Redis to automatically run "auth"
+    with "PASSWORD" and/or "select" with "DB_INDEX" on connect. Both AUTH
+    and DB_INDEX are optional.
+
+  timeout
+      $seconds = $redis->timeout;
+      $redis   = $redis->timeout(100);
+
+    Maximum amount of time in seconds a connection can be inactive before
+    being dropped, defaults to 0 - meaning no timeout.
+
 METHODS
-    Mojo::Redis supports Redis' methods.
-
-        $redis->set(key => 'value);
-        $redis->get(key => sub { ... });
-
-    For more details take a look at "execute" method.
-
-    Also Mojo::Redis implements the following ones.
-
   connect
-        $redis = $redis->connect;
+      $redis = $redis->connect;
 
     Connect to "Redis" server.
 
-  execute
-        $redis = $redis->execute("ping" => sub {
-            my ($redis, $result) = @_;
+  disconnect
+      $redis = $self->disconnect;
 
-            # Process result
-        });
-        $redis->execute(lrange => "test", 0, -1 => sub {...});
-        $redis->execute(set => test => "test_ok");
-        $redis->execute(
-            [lrange => "test", 0, -1],
-            [get => "test"],
-            [hmset => foo => { one => 1, two => 2 }],
-            sub {
-                my($redis, $lrange, $get, $hmset) = @_;
-                # ...
-            },
-        );
+    Used to disconnect from the server. This method is automatically called
+    when this object goes out of scope.
+
+  execute
+      $redis = $redis->execute("ping" => sub {
+                 my ($redis, $result) = @_;
+                 # Process $result
+               });
+
+      $redis->execute(lrange => "test", 0, -1 => sub {...});
+      $redis->execute(set => test => "test_ok");
+
+      $redis->execute(
+        [lrange => "test", 0, -1],
+        [get => "test"],
+        [hmset => foo => { one => 1, two => 2 }],
+        sub {
+          my($redis, $lrange, $get, $hmset) = @_;
+          # ...
+        },
+      );
 
     Execute specified command on "Redis" server. If error occurred during
     request $result will be set to undef, error string can be obtained with
     the "error" event.
 
+  on
+    Same as "on" in Mojo::EventEmitter, except it allows special events such
+    as "blpop", "brpop" and "message".
+
   psubscribe
     Subscribes to channels matching the given patterns.
 
-       # Subscribes to foo, foobar, foo.whaz, etc.
-       my $psub = $redis->psubscribe('foo*');
-       $psub->on(message => sub {
-                my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
-              });
+      # Subscribes to foo, foobar, foo.whaz, etc.
+      my $psub = $redis->psubscribe('foo*');
+      $psub->on(message => sub {
+        my ($self, $msg, $channel, $pattern) = @_; # 'hi!', 'foo.roo', 'foo*'
+      });
 
-       $redis->publish('foo.roo' => 'hi!');
+      $redis->publish('foo.roo' => 'hi!');
 
-    psubscribe has the same interface options and capabilities as
+    "psubscribe" has the same interface options and capabilities as
     "subscribe".
 
   subscribe
     It's possible to subscribe in two ways:
 
-       $self = $redis->subscribe('foo','bar' => sub {
-         my ($redis, $data) = @_;
-       });
+      $redis = $redis->subscribe('foo','bar' => sub {
+                 my ($redis, $data) = @_;
+               });
 
     The above code will overtake the current connection (if any) and put
     this object into a pure subscribe mode.
 
-       my $sub = $redis->subscribe('foo','bar');
-       $sub->on(data => sub {
-                my ($sub, $data) = @_;
-              });
+      my $sub = $redis->subscribe('foo','bar');
+      $sub->on(data => sub {
+        my ($sub, $data) = @_;
+      });
 
     Opens up a new connection that subscribes to the given pubsub channels.
     Returns an instance of Mojo::Redis::Subscription. The existing $redis
     object can still be used to "get" data as expected.
+
+  unsubscribe
+    The opposite as "on". See also "unsubscribe" in Mojo::EventEmitter.
 
 SEE ALSO
     Protocol::Redis, Mojolicious, Mojo::IOLoop
