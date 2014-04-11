@@ -443,7 +443,7 @@ sub _server_to_url {
   my $self = shift;
   my $url;
 
-  if($self->server =~ m{^[^:]+:\d+$}) {
+  if($self->server =~ m{^[^:]+(:\d+)?$}) {
     $url = Mojo::URL->new('redis://' .$self->server);
   }
   else {
