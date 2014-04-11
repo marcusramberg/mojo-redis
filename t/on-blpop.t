@@ -23,7 +23,8 @@ $tid = Mojo::IOLoop->recurring(0.02, sub {
 
 Mojo::IOLoop->start;
 
-is int(@errors), 0, 'no errors';
+is_deeply \@errors, [], 'no errors';
+
 is_deeply(
   \@blpop,
   [map { [$redis, "", "test_blpop", "${tid}:${_}"] } 1..3],
@@ -32,13 +33,11 @@ is_deeply(
 
 is int(keys %{$redis->{connections}}), 1, 'got a connection';
 
+$redis->on(blpop => test_blpop => sub {});
 $redis->unsubscribe(blpop => 'test_blpop');
 is int(keys %{$redis->{connections}}), 0, 'unsubscribe connection';
 
 $redis->on(blpop => test_blpop => sub {});
-eval { $redis->on(blpop => test_blpop => sub {}); };
-like $@, qr{already subscribing to}, 'already subscribing';
-
 $redis->disconnect;
 is int(keys %{$redis->{connections}}), 0, 'disconnected connections';
 

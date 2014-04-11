@@ -179,25 +179,33 @@ sub disconnect {
 }
 
 sub on {
-  my $self = shift;
-  my $method = $ON_SPECIAL{$_[0]};
+  my($self, $event, @args) = @_;
+  my $method = $ON_SPECIAL{$event};
+  my($cb, $name);
 
-  return $method ? $self->$method(@_) : $self->SUPER::on(@_);
+  $method or return $self->SUPER::on($event, @args);
+  $cb = pop @args;
+  $name = join ':', $event, @args;
+  $self->$method($name, $event, @args);
+  $self->SUPER::on($name, $cb);
 }
 
 sub unsubscribe {
-  my($self, @args) = @_;
+  my($self, $event, @args) = @_;
+  my $method = $ON_SPECIAL{$event};
+  my @cb;
 
-  local $" = ':';
+  $method or return $self->SUPER::unsubscribe($event, @args);
+  @cb = ref $args[-1] eq 'CODE' ? (pop @args) : ();
+  $event = join ':', $event, @args;
+  $self->SUPER::unsubscribe($event, @cb);
 
-  if(@args >= 2 and $self->{connections}{"@args"}) {
-    delete($self->{connections}{"@args"})->disconnect;
+  unless($self->has_subscribers($event)) {
+    my $conn = delete $self->{connections}{$event};
+    $conn->disconnect if $conn;
   }
-  else {
-    $self->SUPER::unsubscribe(@args);
-  }
 
-  return $self;
+  $self;
 }
 
 sub subscribe {
@@ -216,7 +224,7 @@ sub _subscribe_generic {
   my $n = 0;
 
   if(!$cb) {
-    return $self->_clone(channels => [@channels], type => $type)->connect;
+    return $self->_clone('Mojo::Redis::Subscription' => channels => [@channels], type => $type)->connect;
   }
 
   # need to attach new callback to the protocol object
@@ -376,24 +384,21 @@ sub _inform_queue {
 }
 
 sub _on_blpop {
-  my($self, $method, @args) = @_;
-  my $cb = pop @args;
-  my $id = join ':', $method, @args;
+  my($self, $id, $method, @args) = @_;
   my $handler;
 
+  $self->{connections}{$id} and return;
   Scalar::Util::weaken $self;
 
   $handler = sub {
-    eval { $self->$cb('', @{ $_[1] }); 1; } or $self->emit(error => $@);
+    $self->emit_safe($id => '', @{ $_[1] });
     $self->{connections}{$id}->$method(@args, 0, $handler);
   };
 
-  $self->{connections}{$id} and die "You are already subscribing to '$method @args'";
   $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
   $self->{connections}{$id}->$method(@args, 0, $handler);
-  $self->{connections}{$id}->on(error => sub { $self->$cb($_[1], '', undef); });
+  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
   $self->{connections}{$id}->connect;
-  $cb;
 }
 
 *_on_brpop = \&_on_blpop;
