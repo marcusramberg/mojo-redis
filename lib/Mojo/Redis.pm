@@ -11,6 +11,8 @@ use Encode       ();
 use Carp;
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
 
+my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop );
+
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
 has encoding => 'UTF-8';
@@ -163,11 +165,39 @@ sub connect {
 sub disconnect {
   my $self = shift;
   my $id = delete $self->{connection};
+  my $connections = $self->{connections} || {};
+
+  if(my $ioloop = $self->ioloop) {
+    $ioloop->remove($id) if $id;
+    $connections->{$_} and $connections->{$_}->disconnect for keys %$connections;
+  }
 
   delete $self->{connecting};
+  delete $self->{connections};
 
-  $self->ioloop->remove($id) if $id and $self->ioloop;
   $self;
+}
+
+sub on {
+  my $self = shift;
+  my $method = $ON_SPECIAL{$_[0]};
+
+  return $method ? $self->$method(@_) : $self->SUPER::on(@_);
+}
+
+sub unsubscribe {
+  my($self, @args) = @_;
+
+  local $" = ':';
+
+  if(@args >= 2 and $self->{connections}{"@args"}) {
+    delete($self->{connections}{"@args"})->disconnect;
+  }
+  else {
+    $self->SUPER::unsubscribe(@args);
+  }
+
+  return $self;
 }
 
 sub subscribe {
@@ -186,16 +216,7 @@ sub _subscribe_generic {
   my $n = 0;
 
   if(!$cb) {
-    return Mojo::Redis::Subscription->new(
-      channels => [@channels],
-      server => $self->server,
-      ioloop => $self->ioloop,
-      encoding => $self->encoding,
-      protocol_redis => $self->protocol_redis,
-      timeout => $self->timeout,
-      type => $type,
-      connection => undef, # need to clear this when making a Subscription object from an active Redis object
-    )->connect;
+    return $self->_clone(channels => [@channels], type => $type)->connect;
   }
 
   # need to attach new callback to the protocol object
@@ -322,6 +343,20 @@ sub _return_command_data {
   };
 }
 
+sub _clone {
+  my($self, $class, @args) = @_;
+
+  $class ||= ref $self;
+  $class->new({
+    encoding => $self->encoding,
+    ioloop => $self->ioloop,
+    protocol_redis => $self->protocol_redis,
+    server => $self->server,
+    timeout => $self->timeout,
+    @args,
+  });
+}
+
 sub _inform_queue {
   my ($self, @emit) = @_;
   my $cb_queue = delete $self->{cb_queue} || [];
@@ -339,6 +374,29 @@ sub _inform_queue {
     };
   }
 }
+
+sub _on_blpop {
+  my($self, $method, @args) = @_;
+  my $cb = pop @args;
+  my $id = join ':', $method, @args;
+  my $handler;
+
+  Scalar::Util::weaken $self;
+
+  $handler = sub {
+    eval { $self->$cb('', @{ $_[1] }); 1; } or $self->emit(error => $@);
+    $self->{connections}{$id}->$method(@args, 0, $handler);
+  };
+
+  $self->{connections}{$id} and die "You are already subscribing to '$method @args'";
+  $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
+  $self->{connections}{$id}->$method(@args, 0, $handler);
+  $self->{connections}{$id}->on(error => sub { $self->$cb($_[1], '', undef); });
+  $self->{connections}{$id}->connect;
+  $cb;
+}
+
+*_on_brpop = \&_on_blpop;
 
 sub _write {
   my($self, $what) = @_;
