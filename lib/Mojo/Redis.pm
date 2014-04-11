@@ -522,25 +522,25 @@ application.
   websocket '/messages' => sub {
     my $self = shift;
     my $tx = $self->tx;
-    my $pub = Mojo::Redis->new;
-    my $sub = $pub->subscribe('messages');
+    my $redis = Mojo::Redis->new;
 
-    # message from redis
-    $sub->on(message => sub {
-      my ($sub, $message, $channel) = @_; # $channel == messages
-      $tx->send($message);
+    # messages from redis
+    $redis->on(message => 'pub:sub:channel', sub {
+      my ($redis, $err, $message, $channel) = @_; # $channel == "pub:sub:channel"
+      $tx->send($message || $err);
     });
 
     # message from websocket
     $self->on(message => sub {
       my ($self, $message) = @_;
-      $pub->publish(messages => $message);
+      $redis->publish('pub:sub:channel' => $message);
     });
+
+    $self->stash(redis => $redis);
 
     # need to clean up after websocket close
     $self->on(finish => sub {
-      undef $pub;
-      undef $sub;
+      delete $self->stash->{redis};
       undef $tx;
     });
   };
@@ -555,21 +555,37 @@ L<Mojo::Redis> is an asynchronous client to L<Redis|http://redis.io> for Mojo.
 
 =head2 error
 
-    $redis->on(error => sub{
-        my($redis, $error) = @_;
-        warn "[REDIS ERROR] $error\n";
-    });
+  $redis->on(error => sub {
+    my($redis, $error) = @_;
+    warn "[REDIS ERROR] $error\n";
+  });
 
 Emitted if error occurred. Called before commands callbacks.
 
 =head2 close
 
-    $redis->on(close => sub{
-        my($redis) = @_;
-        warn "[REDIS DISCONNECT]\n";
-    });
+  $redis->on(close => sub {
+    my($redis) = @_;
+    warn "[REDIS DISCONNECT]\n";
+  });
 
 Emitted when the connection to the server gets closed.
+
+=head2 message
+
+  $redis->on(message => @channels => sub {
+    my($redis, $err, $message, $channel) = @_;
+    warn "[REDIS PUBSUB] Got ($message) from $channel\n";
+  });
+
+This is a special event which allow you to L</subscribe> to messages directly
+in the current L<Mojo::Redis> object instead of using a new
+L<Mojo::Redis::Subscription> object.
+
+To unsubscribe you need to do one of these:
+
+  $redis->on(message => @channels);
+  $redis->on(message => @channels => $cb);
 
 =head1 ATTRIBUTES
 
