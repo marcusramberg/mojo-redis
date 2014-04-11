@@ -11,6 +11,8 @@ use Encode       ();
 use Carp;
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
 
+my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop );
+
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
 has encoding => 'UTF-8';
@@ -163,10 +165,46 @@ sub connect {
 sub disconnect {
   my $self = shift;
   my $id = delete $self->{connection};
+  my $connections = $self->{connections} || {};
+
+  if(my $ioloop = $self->ioloop) {
+    $ioloop->remove($id) if $id;
+    $connections->{$_} and $connections->{$_}->disconnect for keys %$connections;
+  }
 
   delete $self->{connecting};
+  delete $self->{connections};
 
-  $self->ioloop->remove($id) if $id and $self->ioloop;
+  $self;
+}
+
+sub on {
+  my($self, $event, @args) = @_;
+  my $method = $ON_SPECIAL{$event};
+  my($cb, $name);
+
+  $method or return $self->SUPER::on($event, @args);
+  $cb = pop @args;
+  $name = join ':', $event, @args;
+  $self->$method($name, $event, @args);
+  $self->SUPER::on($name, $cb);
+}
+
+sub unsubscribe {
+  my($self, $event, @args) = @_;
+  my $method = $ON_SPECIAL{$event};
+  my @cb;
+
+  $method or return $self->SUPER::unsubscribe($event, @args);
+  @cb = ref $args[-1] eq 'CODE' ? (pop @args) : ();
+  $event = join ':', $event, @args;
+  $self->SUPER::unsubscribe($event, @cb);
+
+  unless($self->has_subscribers($event)) {
+    my $conn = delete $self->{connections}{$event};
+    $conn->disconnect if $conn;
+  }
+
   $self;
 }
 
@@ -186,16 +224,7 @@ sub _subscribe_generic {
   my $n = 0;
 
   if(!$cb) {
-    return Mojo::Redis::Subscription->new(
-      channels => [@channels],
-      server => $self->server,
-      ioloop => $self->ioloop,
-      encoding => $self->encoding,
-      protocol_redis => $self->protocol_redis,
-      timeout => $self->timeout,
-      type => $type,
-      connection => undef, # need to clear this when making a Subscription object from an active Redis object
-    )->connect;
+    return $self->_clone('Mojo::Redis::Subscription' => channels => [@channels], type => $type)->connect;
   }
 
   # need to attach new callback to the protocol object
@@ -322,6 +351,20 @@ sub _return_command_data {
   };
 }
 
+sub _clone {
+  my($self, $class, @args) = @_;
+
+  $class ||= ref $self;
+  $class->new({
+    encoding => $self->encoding,
+    ioloop => $self->ioloop,
+    protocol_redis => $self->protocol_redis,
+    server => $self->server,
+    timeout => $self->timeout,
+    @args,
+  });
+}
+
 sub _inform_queue {
   my ($self, @emit) = @_;
   my $cb_queue = delete $self->{cb_queue} || [];
@@ -339,6 +382,26 @@ sub _inform_queue {
     };
   }
 }
+
+sub _on_blpop {
+  my($self, $id, $method, @args) = @_;
+  my $handler;
+
+  $self->{connections}{$id} and return;
+  Scalar::Util::weaken $self;
+
+  $handler = sub {
+    $self->emit_safe($id => '', reverse @{ $_[1] });
+    $self->{connections}{$id}->$method(@args, 0, $handler);
+  };
+
+  $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
+  $self->{connections}{$id}->$method(@args, 0, $handler);
+  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
+  $self->{connections}{$id}->connect;
+}
+
+*_on_brpop = \&_on_blpop;
 
 sub _write {
   my($self, $what) = @_;
@@ -479,6 +542,26 @@ application.
 L<Mojo::Redis> is an asynchronous client to L<Redis|http://redis.io> for Mojo.
 
 =head1 EVENTS
+
+=head2 blpop
+
+  $cb = $redis->on(blpop => @list_names => sub {
+    my($redis, $err, $data, $list_name) = @_;
+    warn "[REDIS BLPOP] Got ($data) from $list_name\n";
+  });
+
+This is a special event which allow you to do recurring L</blpop> without
+blocking the current L<Mojo::Redis> object. Recurring means that once
+the callback has handled the data, it will issue a new BLPOP.
+
+One of the commands below is required to stop the BLPOP loop:
+
+  $redis->on(message => @channels);
+  $redis->on(message => @channels => $cb);
+
+=head2 brpop
+
+See L</blpop>.
 
 =head2 error
 
