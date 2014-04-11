@@ -27,7 +27,7 @@ is_deeply \@errors, [], 'no errors';
 
 is_deeply(
   \@blpop,
-  [map { [$redis, "", "test_blpop", "${tid}:${_}"] } 1..3],
+  [map { [$redis, "", "${tid}:${_}", "test_blpop"] } 1..3],
   'blpop received expected events without error',
 );
 

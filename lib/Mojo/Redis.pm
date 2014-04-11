@@ -391,7 +391,7 @@ sub _on_blpop {
   Scalar::Util::weaken $self;
 
   $handler = sub {
-    $self->emit_safe($id => '', @{ $_[1] });
+    $self->emit_safe($id => '', reverse @{ $_[1] });
     $self->{connections}{$id}->$method(@args, 0, $handler);
   };
 
