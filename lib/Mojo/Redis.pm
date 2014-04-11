@@ -11,7 +11,7 @@ use Encode       ();
 use Carp;
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
 
-my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop );
+my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop message );
 
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
@@ -96,7 +96,7 @@ sub connect {
   $auth = (split /:/, $url->userinfo || '')[1];
   $db_index = ($url->path =~ /(\d+)/)[0] || '';
 
-  $self->disconnect; # drop old connection
+  $self->disconnect if $self->{connecting} or $self->{connection}; # drop old connection
   $self->{connecting} = 1;
   $self->{connection} = $self->ioloop->client(
     { address => $url->host,
@@ -180,7 +180,7 @@ sub disconnect {
 
 sub on {
   my($self, $event, @args) = @_;
-  my $method = $ON_SPECIAL{$event};
+  my $method = @args > 1 ? $ON_SPECIAL{$event} : '';
   my($cb, $name);
 
   $method or return $self->SUPER::on($event, @args);
@@ -403,6 +403,16 @@ sub _on_blpop {
 
 *_on_brpop = \&_on_blpop;
 
+sub _on_message {
+  my($self, $id, $method, @channels) = @_;
+
+  Scalar::Util::weaken $self;
+  $self->{connections}{$id} and return;
+  $self->{connections}{$id} = $self->subscribe(@channels);
+  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
+  $self->{connections}{$id}->on(message => sub { shift; $self->emit_safe($id => '', @_); });
+}
+
 sub _write {
   my($self, $what) = @_;
   my $ioloop = $self->ioloop;
@@ -512,25 +522,25 @@ application.
   websocket '/messages' => sub {
     my $self = shift;
     my $tx = $self->tx;
-    my $pub = Mojo::Redis->new;
-    my $sub = $pub->subscribe('messages');
+    my $redis = Mojo::Redis->new;
 
-    # message from redis
-    $sub->on(message => sub {
-      my ($sub, $message, $channel) = @_; # $channel == messages
-      $tx->send($message);
+    # messages from redis
+    $redis->on(message => 'pub:sub:channel', sub {
+      my ($redis, $err, $message, $channel) = @_; # $channel == "pub:sub:channel"
+      $tx->send($message || $err);
     });
 
     # message from websocket
     $self->on(message => sub {
       my ($self, $message) = @_;
-      $pub->publish(messages => $message);
+      $redis->publish('pub:sub:channel' => $message);
     });
+
+    $self->stash(redis => $redis);
 
     # need to clean up after websocket close
     $self->on(finish => sub {
-      undef $pub;
-      undef $sub;
+      delete $self->stash->{redis};
       undef $tx;
     });
   };
@@ -565,21 +575,37 @@ See L</blpop>.
 
 =head2 error
 
-    $redis->on(error => sub{
-        my($redis, $error) = @_;
-        warn "[REDIS ERROR] $error\n";
-    });
+  $redis->on(error => sub {
+    my($redis, $error) = @_;
+    warn "[REDIS ERROR] $error\n";
+  });
 
 Emitted if error occurred. Called before commands callbacks.
 
 =head2 close
 
-    $redis->on(close => sub{
-        my($redis) = @_;
-        warn "[REDIS DISCONNECT]\n";
-    });
+  $redis->on(close => sub {
+    my($redis) = @_;
+    warn "[REDIS DISCONNECT]\n";
+  });
 
 Emitted when the connection to the server gets closed.
+
+=head2 message
+
+  $redis->on(message => @channels => sub {
+    my($redis, $err, $message, $channel) = @_;
+    warn "[REDIS PUBSUB] Got ($message) from $channel\n";
+  });
+
+This is a special event which allow you to L</subscribe> to messages directly
+in the current L<Mojo::Redis> object instead of using a new
+L<Mojo::Redis::Subscription> object.
+
+To unsubscribe you need to do one of these:
+
+  $redis->on(message => @channels);
+  $redis->on(message => @channels => $cb);
 
 =head1 ATTRIBUTES
 
