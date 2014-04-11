@@ -1,7 +1,33 @@
 NAME
     Mojo::Redis - Asynchronous Redis client for Mojolicious.
 
+DESCRIPTION
+    Mojo::Redis is an asynchronous Redis <http://redis.io> client for the
+    Mojolicious framework.
+
+    Currently we support these Redis commands in addition to the "METHODS"
+    described in this module.
+
+      append auth bgrewriteaof bgsave blpop brpop brpoplpush config_get config_set
+      config_resetstat dbsize debug_object debug_segfault decr decrby del discard
+      echo exec exists expire expireat flushall flushdb get getbit getrange getset
+      hdel hexists hget hgetall hincrby hkeys hlen hmget hmset hset hsetnx hvals
+      incr incrby info keys lastsave lindex linsert llen lpop lpush lpushx lrange
+      lrem lset ltrim mget monitor move mset msetnx multi persist ping
+      publish quit randomkey rename renamenx rpop rpoplpush rpush
+      rpushx sadd save scard sdiff sdiffstore select set setbit setex setnx
+      setrange shutdown sinter sinterstore sismember slaveof smembers smove sort
+      spop srandmember srem strlen sunion sunionstore sync ttl type
+      unwatch watch zadd zcard zcount zincrby zinterstore zrange
+      zrangebyscore zrank zrem zremrangebyrank zremrangebyscore zrevrange
+      zrevrangebyscore zrevrank zscore zunionstore
+
+    If a command is missing, then please file a bug report
+    <https://github.com/marcusramberg/mojo-redis/issues> and use "execute"
+    in the meanwhile.
+
 SYNOPSIS
+  Standalone
       use Mojo::Redis;
 
       my $redis = Mojo::Redis->new(server => '127.0.0.1:6379');
@@ -34,9 +60,7 @@ SYNOPSIS
       # Start IOLoop (in case it is not started yet)
       $redis->ioloop->start;
 
-    Create new Mojo::IOLoop instance if you need to get blocked in a
-    Mojolicious application.
-
+  Mojolicious::Lite example
       use Mojolicious::Lite;
       use Mojo::Redis;
 
@@ -57,54 +81,84 @@ SYNOPSIS
         );
       };
 
+  Websocket example
       websocket '/messages' => sub {
         my $self = shift;
         my $tx = $self->tx;
-        my $pub = Mojo::Redis->new;
-        my $sub = $pub->subscribe('messages');
+        my $redis = Mojo::Redis->new;
 
-        # message from redis
-        $sub->on(message => sub {
-          my ($sub, $message, $channel) = @_; # $channel == messages
-          $tx->send($message);
+        # messages from redis
+        $redis->on(message => 'pub:sub:channel', sub {
+          my ($redis, $err, $message, $channel) = @_; # $channel == "pub:sub:channel"
+          $tx->send($message || $err);
         });
 
         # message from websocket
         $self->on(message => sub {
           my ($self, $message) = @_;
-          $pub->publish(messages => $message);
+          $redis->publish('pub:sub:channel' => $message);
         });
+
+        $self->stash(redis => $redis);
 
         # need to clean up after websocket close
         $self->on(finish => sub {
-          undef $pub;
-          undef $sub;
+          delete $self->stash->{redis};
           undef $tx;
         });
       };
 
       app->start;
 
-DESCRIPTION
-    Mojo::Redis is an asynchronous client to Redis <http://redis.io> for
-    Mojo.
-
 EVENTS
+  blpop
+      $cb = $redis->on(blpop => @list_names => sub {
+        my($redis, $err, $data, $list_name) = @_;
+        warn "[REDIS BLPOP] Got ($data) from $list_name\n";
+      });
+
+    This is a special event which allow you to do recurring "blpop" without
+    blocking the current Mojo::Redis object. Recurring means that once the
+    callback has handled the data, it will issue a new BLPOP.
+
+    One of the commands below is required to stop the BLPOP loop:
+
+      $redis->on(message => @channels);
+      $redis->on(message => @channels => $cb);
+
+  brpop
+    See "blpop".
+
   error
-        $redis->on(error => sub{
-            my($redis, $error) = @_;
-            warn "[REDIS ERROR] $error\n";
-        });
+      $redis->on(error => sub {
+        my($redis, $error) = @_;
+        warn "[REDIS ERROR] $error\n";
+      });
 
     Emitted if error occurred. Called before commands callbacks.
 
   close
-        $redis->on(close => sub{
-            my($redis) = @_;
-            warn "[REDIS DISCONNECT]\n";
-        });
+      $redis->on(close => sub {
+        my($redis) = @_;
+        warn "[REDIS DISCONNECT]\n";
+      });
 
     Emitted when the connection to the server gets closed.
+
+  message
+      $redis->on(message => @channels => sub {
+        my($redis, $err, $message, $channel) = @_;
+        warn "[REDIS PUBSUB] Got ($message) from $channel\n";
+      });
+
+    This is a special event which allow you to "subscribe" to messages
+    directly in the current Mojo::Redis object instead of using a new
+    Mojo::Redis::Subscription object.
+
+    To unsubscribe you need to do one of these:
+
+      $redis->on(message => @channels);
+      $redis->on(message => @channels => $cb);
 
 ATTRIBUTES
     Mojo::Redis implements the following attributes.
@@ -185,75 +239,6 @@ METHODS
     request $result will be set to undef, error string can be obtained with
     the "error" event.
 
-REDIS METHODS
-  append
-  auth
-    See "server" instead.
-
-  bgrewriteaof
-  bgsave
-  blpop
-  brpop
-  brpoplpush
-  config_get
-  config_resetstat
-  config_set
-  connected
-  dbsize
-  debug_object
-  debug_segfault
-  decr
-  decrby
-  del
-  discard
-  disconnect
-  echo
-  exec
-  exists
-  expire
-  expireat
-  flushall
-  flushdb
-  get
-  getbit
-  getrange
-  getset
-  hdel
-  hexists
-  hget
-  hgetall
-  hincrby
-  hkeys
-  hlen
-  hmget
-  hmset
-  hset
-  hsetnx
-  hvals
-  incr
-  incrby
-  info
-  keys
-  lastsave
-  lindex
-  linsert
-  llen
-  lpop
-  lpush
-  lpushx
-  lrange
-  lrem
-  lset
-  ltrim
-  mget
-  monitor
-  move
-  mset
-  msetnx
-  multi
-  persist
-  ping
-  protocol
   psubscribe
     Subscribes to channels matching the given patterns.
 
@@ -268,40 +253,6 @@ REDIS METHODS
     psubscribe has the same interface options and capabilities as
     "subscribe".
 
-  publish
-  quit
-  randomkey
-  rename
-  renamenx
-  rpop
-  rpoplpush
-  rpush
-  rpushx
-  sadd
-  save
-  scard
-  sdiff
-  sdiffstore
-  select
-    See "server" instead.
-
-  set
-  setbit
-  setex
-  setnx
-  setrange
-  shutdown
-  sinter
-  sinterstore
-  sismember
-  slaveof
-  smembers
-  smove
-  sort
-  spop
-  srandmember
-  srem
-  strlen
   subscribe
     It's possible to subscribe in two ways:
 
@@ -321,29 +272,6 @@ REDIS METHODS
     Returns an instance of Mojo::Redis::Subscription. The existing $redis
     object can still be used to "get" data as expected.
 
-  sunion
-  sunionstore
-  sync
-  ttl
-  type
-  unwatch
-  watch
-  zadd
-  zcard
-  zcount
-  zincrby
-  zinterstore
-  zrange
-  zrangebyscore
-  zrank
-  zrem
-  zremrangebyrank
-  zremrangebyscore
-  zrevrange
-  zrevrangebyscore
-  zrevrank
-  zscore
-  zunionstore
 SEE ALSO
     Protocol::Redis, Mojolicious, Mojo::IOLoop
 

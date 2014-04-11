@@ -1,5 +1,11 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9923   Fri Apr 11 16:34:00 2014
+       - Cleaned up documentation
+       - Add support for $redis->on(message => @channels => $cb) events
+       - Add support for $redis->on(blpop => @list_names => $cb) events
+       - Add support for $redis->on(brpop => @list_names => $cb) events
+
 0.9922   Wed Dec 25 10:15:18 2013
        - Made connected() more intelligent
 
