@@ -11,7 +11,7 @@ use Encode       ();
 use Carp;
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} ? 1 : 0;
 
-my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop );
+my %ON_SPECIAL = map { $_, "_on_$_" } qw( blpop brpop message );
 
 has server   => '127.0.0.1:6379';
 has ioloop   => sub { Mojo::IOLoop->singleton };
@@ -96,7 +96,7 @@ sub connect {
   $auth = (split /:/, $url->userinfo || '')[1];
   $db_index = ($url->path =~ /(\d+)/)[0] || '';
 
-  $self->disconnect; # drop old connection
+  $self->disconnect if $self->{connecting} or $self->{connection}; # drop old connection
   $self->{connecting} = 1;
   $self->{connection} = $self->ioloop->client(
     { address => $url->host,
@@ -180,7 +180,7 @@ sub disconnect {
 
 sub on {
   my($self, $event, @args) = @_;
-  my $method = $ON_SPECIAL{$event};
+  my $method = @args > 1 ? $ON_SPECIAL{$event} : '';
   my($cb, $name);
 
   $method or return $self->SUPER::on($event, @args);
@@ -402,6 +402,16 @@ sub _on_blpop {
 }
 
 *_on_brpop = \&_on_blpop;
+
+sub _on_message {
+  my($self, $id, $method, @channels) = @_;
+
+  Scalar::Util::weaken $self;
+  $self->{connections}{$id} and return;
+  $self->{connections}{$id} = $self->subscribe(@channels);
+  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
+  $self->{connections}{$id}->on(message => sub { shift; $self->emit_safe($id => '', @_); });
+}
 
 sub _write {
   my($self, $what) = @_;
