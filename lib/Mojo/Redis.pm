@@ -543,6 +543,26 @@ L<Mojo::Redis> is an asynchronous client to L<Redis|http://redis.io> for Mojo.
 
 =head1 EVENTS
 
+=head2 blpop
+
+  $cb = $redis->on(blpop => @list_names => sub {
+    my($redis, $err, $data, $list_name) = @_;
+    warn "[REDIS BLPOP] Got ($data) from $list_name\n";
+  });
+
+This is a special event which allow you to do recurring L</blpop> without
+blocking the current L<Mojo::Redis> object. Recurring means that once
+the callback has handled the data, it will issue a new BLPOP.
+
+One of the commands below is required to stop the BLPOP loop:
+
+  $redis->on(message => @channels);
+  $redis->on(message => @channels => $cb);
+
+=head2 brpop
+
+See L</blpop>.
+
 =head2 error
 
     $redis->on(error => sub{
