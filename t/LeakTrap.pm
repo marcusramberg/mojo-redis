@@ -9,7 +9,7 @@ sub import {
   my $class = shift;
 
   my $DESTROY = \&Mojo::Redis::DESTROY;
-  my $i = 0;
+  my $i = 1;
 
   monkey_patch 'Mojo::Redis', 'new' => sub { diag "new() $i"; my $obj = Mojo::Base::new(@_); $::trap{$obj} = $i++; $obj; };
   monkey_patch 'Mojo::Redis', 'DESTROY' => sub { diag "DESTROY() ", delete $::trap{$_[0]}; $DESTROY->(@_); };

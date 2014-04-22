@@ -385,7 +385,7 @@ sub _inform_queue {
 
 sub _on_blpop {
   my($self, $id, $method, @args) = @_;
-  my $handler;
+  my($redis, $handler);
 
   $self->{connections}{$id} and return;
   Scalar::Util::weaken $self;
@@ -395,22 +395,48 @@ sub _on_blpop {
     $self->{connections}{$id}->$method(@args, 0, $handler);
   };
 
-  $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
-  $self->{connections}{$id}->$method(@args, 0, $handler);
-  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
-  $self->{connections}{$id}->connect;
+  $redis = $self->_clone(undef, timeout => 0);
+  $redis->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
+  $redis->$method(@args, 0, $handler);
+  $self->{connections}{$id} = $redis;
 }
 
 *_on_brpop = \&_on_blpop;
 
 sub _on_message {
-  my($self, $id, $method, @channels) = @_;
+  my ($self, $id, $method, @channels) = @_;
+  my $redis;
 
-  Scalar::Util::weaken $self;
   $self->{connections}{$id} and return;
-  $self->{connections}{$id} = $self->subscribe(@channels);
-  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
-  $self->{connections}{$id}->on(message => sub { shift; $self->emit_safe($id => '', @_); });
+
+  Scalar::Util::weaken($self);
+  $redis = $self->_clone(undef, timeout => 0, cb_queue => [(sub {}) x (@channels - 1)]);
+  $redis->on(error => sub {
+    $self->emit_safe($id => $_[1], undef, undef);
+  });
+  $redis->execute(
+    [ subscribe => @channels ],
+    sub {
+      my($redis) = @_;
+      $redis->{protocol} = $self->_message_protocol($id);
+    },
+  );
+
+  $self->{connections}{$id} = $redis;
+}
+
+sub _message_protocol {
+  my ($self, $id) = @_;
+  my $protocol = $self->protocol_redis->new(api => 1);
+
+  Scalar::Util::weaken($self);
+  $protocol->on_message(sub {
+    my ($protocol, $message) = @_;
+    my $data = $self->_reencode_message($message) or return;
+    $self->emit_safe($id => '', @$data[2,1]);
+  });
+
+  $protocol;
 }
 
 sub _write {

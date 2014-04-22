@@ -3,7 +3,11 @@ use t::LeakTrap;
 
 plan skip_all => 'Set REDIS_SERVER=127.0.0.1:6379' unless $ENV{REDIS_SERVER};
 
-{
+my $publisher = Mojo::Redis->new(server => "redis://$ENV{REDIS_SERVER}/14", timeout => 5);
+
+use Test::LeakTrace;
+leaktrace {
+#{
   my $redis = Mojo::Redis->new(server => "redis://$ENV{REDIS_SERVER}/14", timeout => 5);
   my $n = 0;
   my($tid, @errors, @message);
@@ -15,7 +19,7 @@ plan skip_all => 'Set REDIS_SERVER=127.0.0.1:6379' unless $ENV{REDIS_SERVER};
   });
 
   $tid = Mojo::IOLoop->recurring(0.02, sub {
-    $redis->publish("test:pub:sub" => $tid .':' .(++$n));
+    $publisher->publish("test:pub:sub" => $tid .':' .(++$n));
     Mojo::IOLoop->remove($tid) if $n == 3;
   });
 
@@ -29,17 +33,19 @@ plan skip_all => 'Set REDIS_SERVER=127.0.0.1:6379' unless $ENV{REDIS_SERVER};
     'message received expected events without error',
   );
 
-  is int(keys %{$redis->{connections}}), 1, 'got a connection';
+#  is int(keys %{$redis->{connections}}), 1, 'got a connection';
+#
+#  $redis->on(message => test_message => sub {});
+#  $redis->disconnect;
+#  is int(keys %{$redis->{connections}}), 0, 'disconnected connections';
+#
+#  $redis->on(message => test_message => sub {});
+#  $redis->unsubscribe(message => 'test_message');
+#  is int(keys %{$redis->{connections}}), 0, 'unsubscribe connection';
+};
 
-  $redis->on(message => test_message => sub {});
-  $redis->disconnect;
-  is int(keys %{$redis->{connections}}), 0, 'disconnected connections';
+undef $publisher;
 
-  $redis->on(message => test_message => sub {});
-  $redis->unsubscribe(message => 'test_message');
-  is int(keys %{$redis->{connections}}), 0, 'unsubscribe connection';
-}
-
-is_deeply [values %::trap], [], 'no leakage' or diag join ' ', 'leak obj:', values %::trap;
+is_deeply [values %::trap], [], 'no leakage' or diag join ' ', 'leak obj:', sort values %::trap;
 
 done_testing;

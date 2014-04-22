@@ -41,6 +41,6 @@ plan skip_all => 'Set REDIS_SERVER=127.0.0.1:6379' unless $ENV{REDIS_SERVER};
   is int(keys %{$redis->{connections}}), 0, 'disconnected connections';
 }
 
-is_deeply [values %::trap], [], 'no leakage' or diag join ' ', 'leak obj:', values %::trap;
+is_deeply [values %::trap], [], 'no leakage' or diag join ' ', 'leak obj:', sort values %::trap;
 
 done_testing;
