@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9925   Wed Apr 23 11:25:03 2014
+       - Fix on(message => $name => ...) leak with home brewed t::LeakTrap
+
 0.9924   Fri Apr 11 19:38:12 2014
        - Allow just $redis->server($hostname) without port
        - Cleaned up documentation

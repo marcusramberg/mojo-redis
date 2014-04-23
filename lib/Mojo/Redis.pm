@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9924';
+our $VERSION = '0.9925';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -31,17 +31,10 @@ has protocol_redis => sub {
 
 has protocol => sub {
   my $self = shift;
-  my $protocol = $self->protocol_redis->new(api => 1);
+  my $protocol = $self->protocol_redis->new(api => 1) or Carp::croak('protocol_redis implementation does not support APIv1');
 
-  $protocol or Carp::croak('protocol_redis implementation does not support APIv1');
   Scalar::Util::weaken($self);
-  $protocol->on_message(
-    sub {
-      my ($parser, $command) = @_;
-      $self->_return_command_data($command);
-    }
-  );
-
+  $protocol->on_message(sub { shift; $self->_return_command_data(@_); });
   $protocol;
 };
 
@@ -164,16 +157,19 @@ sub connect {
 
 sub disconnect {
   my $self = shift;
-  my $id = delete $self->{connection};
   my $connections = $self->{connections} || {};
 
-  if(my $ioloop = $self->ioloop) {
-    $ioloop->remove($id) if $id;
-    $connections->{$_} and $connections->{$_}->disconnect for keys %$connections;
+  for my $id (keys %$connections) {
+    my $c = delete $connections->{$id};
+    $c->disconnect if $c;
   }
 
   delete $self->{connecting};
-  delete $self->{connections};
+  delete $self->{protocol};
+
+  if(my $id = delete $self->{connection} and $self->{ioloop}) {
+    $self->{ioloop}->remove($id);
+  }
 
   $self;
 }
@@ -384,33 +380,42 @@ sub _inform_queue {
 }
 
 sub _on_blpop {
-  my($self, $id, $method, @args) = @_;
+  my ($self, $id, $method, @args) = @_;
   my $handler;
 
+  Scalar::Util::weaken($self);
   $self->{connections}{$id} and return;
-  Scalar::Util::weaken $self;
+  $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
 
   $handler = sub {
     $self->emit_safe($id => '', reverse @{ $_[1] });
     $self->{connections}{$id}->$method(@args, 0, $handler);
   };
 
-  $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
-  $self->{connections}{$id}->$method(@args, 0, $handler);
   $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
-  $self->{connections}{$id}->connect;
+  $self->{connections}{$id}->$method(@args, 0, $handler);
 }
 
 *_on_brpop = \&_on_blpop;
 
 sub _on_message {
-  my($self, $id, $method, @channels) = @_;
+  my ($self, $id, $method, @channels) = @_;
 
-  Scalar::Util::weaken $self;
+  Scalar::Util::weaken($self);
   $self->{connections}{$id} and return;
-  $self->{connections}{$id} = $self->subscribe(@channels);
+  $self->{connections}{$id} = $self->_clone(undef, timeout => 0, cb_queue => [(sub {}) x (@channels - 1)]);
   $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
-  $self->{connections}{$id}->on(message => sub { shift; $self->emit_safe($id => '', @_); });
+  $self->{connections}{$id}->execute(
+    [ subscribe => @channels ],
+    sub {
+      my ($redis) = @_;
+      $redis->protocol->on_message(sub {
+        $self or return; # may be undef on global destruction
+        my $data = $self->_reencode_message($_[1]);
+        $self->emit($id => '', @$data[2, 1]);
+      }),
+    },
+  );
 }
 
 sub _write {
