@@ -31,17 +31,10 @@ has protocol_redis => sub {
 
 has protocol => sub {
   my $self = shift;
-  my $protocol = $self->protocol_redis->new(api => 1);
+  my $protocol = $self->protocol_redis->new(api => 1) or Carp::croak('protocol_redis implementation does not support APIv1');
 
-  $protocol or Carp::croak('protocol_redis implementation does not support APIv1');
   Scalar::Util::weaken($self);
-  $protocol->on_message(
-    sub {
-      my ($parser, $command) = @_;
-      $self->_return_command_data($command);
-    }
-  );
-
+  $protocol->on_message(sub { shift; $self->_return_command_data(@_); });
   $protocol;
 };
 
@@ -164,17 +157,16 @@ sub connect {
 
 sub disconnect {
   my $self = shift;
-  my $id = delete $self->{connection};
   my $connections = $self->{connections} || {};
 
-  if(my $ioloop = $self->ioloop) {
-    $ioloop->remove($id) if $id;
-    $connections->{$_} and $connections->{$_}->disconnect for keys %$connections;
+  for my $id (keys %$connections) {
+    my $c = delete $connections->{$id};
+    $c->disconnect if $c;
   }
 
   delete $self->{connecting};
-  delete $self->{connections};
-
+  delete $self->{protocol};
+  $self->_close;
   $self;
 }
 
@@ -293,6 +285,16 @@ sub execute {
   return $self;
 }
 
+sub _close {
+  my $self = shift;
+  my $id = delete $self->{connection} or return;
+  my $ioloop = $self->{ioloop} or return;
+  my $stream = $ioloop->stream($id);
+
+  $stream->close if $stream;
+  $ioloop->remove($id);
+}
+
 sub _send_next_message {
   my ($self) = @_;
 
@@ -409,34 +411,26 @@ sub _on_message {
 
   $self->{connections}{$id} and return;
 
-  Scalar::Util::weaken($self);
   $redis = $self->_clone(undef, timeout => 0, cb_queue => [(sub {}) x (@channels - 1)]);
+
+  $redis->{parent} = $self;
+
   $redis->on(error => sub {
-    $self->emit_safe($id => $_[1], undef, undef);
+    my ($redis, $err) = @_;
+    $redis->{parent}->emit_safe($id => $err, undef, undef);
   });
+
   $redis->execute(
     [ subscribe => @channels ],
     sub {
-      my($redis) = @_;
-      $redis->{protocol} = $self->_message_protocol($id);
+      my ($redis) = @_;
+      Scalar::Util::weaken($redis);
+      $redis->protocol->on_message(sub { shift->_return_command_data(@_); });
     },
   );
 
   $self->{connections}{$id} = $redis;
-}
-
-sub _message_protocol {
-  my ($self, $id) = @_;
-  my $protocol = $self->protocol_redis->new(api => 1);
-
-  Scalar::Util::weaken($self);
-  $protocol->on_message(sub {
-    my ($protocol, $message) = @_;
-    my $data = $self->_reencode_message($message) or return;
-    $self->emit_safe($id => '', @$data[2,1]);
-  });
-
-  $protocol;
+  Scalar::Util::weaken($self->{connections}{$id}{parent});
 }
 
 sub _write {
