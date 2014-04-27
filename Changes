@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9926
+       - Remove optional Test::LeakTrace requirement
+         https://github.com/marcusramberg/mojo-redis/issues/28
+
 0.9925   Wed Apr 23 11:25:03 2014
        - Fix on(message => $name => ...) leak with home brewed t::LeakTrap
 

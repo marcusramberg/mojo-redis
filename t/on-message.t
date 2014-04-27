@@ -5,8 +5,6 @@ plan skip_all => 'Set REDIS_SERVER=127.0.0.1:6379' unless $ENV{REDIS_SERVER};
 
 my $publisher = Mojo::Redis->new(server => "redis://$ENV{REDIS_SERVER}/14", timeout => 5);
 
-use Test::LeakTrace;
-#leaktrace {
 {
   my $redis = Mojo::Redis->new(server => "redis://$ENV{REDIS_SERVER}/14", timeout => 5);
   my $n = 0;
@@ -44,7 +42,7 @@ use Test::LeakTrace;
   $redis->on(message => test_message => sub {});
   $redis->unsubscribe(message => 'test_message');
   is int(keys %{$redis->{connections}}), 0, 'unsubscribe connection';
-};
+}
 
 undef $publisher;
 
