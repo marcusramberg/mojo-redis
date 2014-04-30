@@ -1,5 +1,8 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
+0.9927   Wed Apr 30 09:32:11 2014
+       - Add support for blpop/message once() events as well
+
 0.9926   Sun Apr 27 16:35:52 2014
        - Remove optional Test::LeakTrace requirement
          https://github.com/marcusramberg/mojo-redis/issues/28

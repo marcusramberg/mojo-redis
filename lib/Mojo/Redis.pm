@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9926';
+our $VERSION = '0.9927';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -177,13 +177,29 @@ sub disconnect {
 sub on {
   my($self, $event, @args) = @_;
   my $method = @args > 1 ? $ON_SPECIAL{$event} : '';
-  my($cb, $name);
+  my $name = $event;
+  my $cb = pop @args;
 
-  $method or return $self->SUPER::on($event, @args);
-  $cb = pop @args;
-  $name = join ':', $event, @args;
-  $self->$method($name, $event, @args);
+  if($method) {
+    $name = join ':', $event, @args;
+    $self->$method($name, $event, @args);
+  }
+
   $self->SUPER::on($name, $cb);
+}
+
+sub once {
+  my($self, $event, @args) = @_;
+  my $method = @args > 1 ? $ON_SPECIAL{$event} : '';
+  my $name = $event;
+  my $cb = pop @args;
+
+  if($method) {
+    $name = join ':', $event, @args;
+    $self->$method($name, $event, @args);
+  }
+
+  $self->SUPER::once($name, $cb);
 }
 
 sub unsubscribe {
@@ -739,6 +755,11 @@ the L</error> event.
 =head2 on
 
 Same as L<Mojo::EventEmitter/on>, except it allows special events such as
+L</blpop>, L</brpop> and L</message>.
+
+=head2 once
+
+Same as L<Mojo::EventEmitter/once>, except it allows special events such as
 L</blpop>, L</brpop> and L</message>.
 
 =head2 psubscribe

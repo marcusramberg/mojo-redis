@@ -250,6 +250,10 @@ METHODS
     Same as "on" in Mojo::EventEmitter, except it allows special events such
     as "blpop", "brpop" and "message".
 
+  once
+    Same as "once" in Mojo::EventEmitter, except it allows special events
+    such as "blpop", "brpop" and "message".
+
   psubscribe
     Subscribes to channels matching the given patterns.
 
