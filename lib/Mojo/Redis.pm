@@ -80,6 +80,35 @@ sub DESTROY {
   $_[0]->disconnect;
 }
 
+sub client_list {
+  my($self, $cb) = @_;
+  my $clients = {};
+
+  $self->execute(qw(client list), sub {
+    my $self = shift;
+    my $stream = $self->ioloop->stream($self->{connection});
+    my $self_addr = '';
+
+    if($stream and $stream->handle) {
+      $self_addr = join ':', $stream->handle->sockhost, $stream->handle->sockport;
+    }
+
+    for(split /[\n\r]+/, $_[0]) {
+      my %info = map { split /=/, $_, 2 } split /\s+/;
+      my $addr = delete $info{addr};
+      $info{self} = $addr eq $self_addr ? 1 : 0;
+      $clients->{$addr} = \%info;
+    }
+
+    return $self->$cb($clients) if $cb;
+    return $self->ioloop->stop;
+  });
+
+  return $self if $cb;
+  $self->ioloop->start unless $cb;
+  return $clients;
+}
+
 sub connect {
   my $self = shift;
   my $url = $self->_server_to_url;
@@ -714,6 +743,31 @@ Maximum amount of time in seconds a connection can be inactive before being
 dropped, defaults to C<0> - meaning no timeout.
 
 =head1 METHODS
+
+=head2 client_list
+
+  $clients = $self->client_list;
+  $self = $self->client_list(sub {
+            my($self, $clients) = @_;
+          });
+
+Returns L<CLIENT LIST|http://redis.io/commands/client-list> in a structured
+form:
+
+  {
+    $addr => {
+      self => $bool,
+      age => $int, # total duration of the connection in seconds
+      cmd => $str, # last command played
+      db => $int, # current database ID
+      ...
+    },
+  }
+
+C<$addr> is address/port of the client, C<self> is true if the client
+structure describe C<$self>. The rest of the keys are dependent on the
+Redis version you have. Read about "Return value" on
+L<http://redis.io/commands/client-list>.
 
 =head2 connect
 
