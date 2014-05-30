@@ -1,9 +1,7 @@
-use Mojo::Base -strict;
-use Mojo::IOLoop;
+use t::Helper;
 use Mojo::Redis;
-use Test::More;
 
-my $port = Mojo::IOLoop->generate_port;
+my $port = generate_port();
 
 {
   my $server = Mojo::IOLoop->server({ port => $port }, sub { Mojo::IOLoop->stop; });

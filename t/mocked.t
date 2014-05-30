@@ -1,12 +1,10 @@
-use Mojo::Base -strict;
-use Mojo::IOLoop;
+use t::Helper;
 use Mojo::Redis;
-use Test::More;
 
 plan tests => 6;
 
 my(@chunk, @write, $server, $stream);
-my $port = Mojo::IOLoop->generate_port;
+my $port = generate_port();
 my $n = 0;
 
 $server = Mojo::IOLoop->server(
