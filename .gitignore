@@ -1,0 +1,14 @@
+/META*
+/MYMETA*
+/blib/
+/inc/
+/local
+/pm_to_blib
+/MANIFEST
+/MANIFEST.bak
+/Makefile
+/Makefile.old
+*.old
+*.swp
+~$
+/Mojo-YR*tar.gz
