@@ -110,6 +110,18 @@ my %REDIS_METHODS = map { ($_, 1) } (
 
 =head1 EVENTS
 
+=head2 close
+
+  $self->on(close => sub { my ($self, $id) = @_; });
+
+Emitted when a connection close.
+
+=head2 connection
+
+  $self->on(connection => sub { my ($self, $id) = @_; });
+
+Emitted when a new connection has been established.
+
 =head2 error
 
   $self->on(error => sub { my ($self, $err) = @_; ... });
