@@ -92,6 +92,11 @@ the same Redis server.
 
 L</unsubscribe> will be automatically called if C<$err> is present.
 
+=head2 Error handling
+
+C<$err> in this document is a string containing an error message or
+empty string on success.
+
 =cut
 
 use Mojo::Base 'Mojo::EventEmitter';
@@ -183,9 +188,15 @@ sub url {
 =head2 execute
 
   @res = $self->execute;
-  $self = $self->execute(sub { my ($self, @res) = @_; ... });
+  $self = $self->execute(sub {
+            my ($self, $err, $res) = @_;
+          });
 
 Will send the L<prepared|/prepare> commands to the Redis server.
+The callback will receive L<$err|/Error Handling> and C<$res>. C<$res>
+is an array-ref with one list-item per L<prepared|/prepare> redis command.
+
+C<$res> will be returned as a list when called in blocking context.
 
 =head2 pipelined
 
