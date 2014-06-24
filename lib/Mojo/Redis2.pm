@@ -250,6 +250,14 @@ channel names. See L<http://redis.io/commands/psubscribe> for details.
 Used to subscribe to specified channels. See L<http://redis.io/topics/pubsub>
 for details. This method is only useful in non-blocking context.
 
+C<%args> is optional, but can be used to retrieve raw data instead of
+just the messages:
+
+  $self->subscribe("some:channel", { raw => 1 }, sub {
+    my ($self, $err, $data) = @_;
+    # Example $data: [ "message", "some:channel", "example message" ]
+  });
+
 =head2 unsubscribe
 
   $self->unsubscribe($id);
