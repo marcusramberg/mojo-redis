@@ -83,14 +83,20 @@ L<Mojo::Redis2> can L</subscribe> and re-use the same object to C<publish> or
 run other Redis commands, since it can keep track of multiple connections to
 the same Redis server.
 
-  $id = $self->subscribe("some:channel" => sub {
-    my ($self, $err, $message, $channel) = @_;
+  my $id;
 
-    $self->incr("messsages_from:some:channel");
-    $self->unsubscribe($id); # stop subscription
+  $self->on(message => sub {
+    my ($self, $message, $channel) = @_;
+
+    $self->unsubscribe($id) if $message =~ /KEEP OUT/;
   });
 
-L</unsubscribe> will be automatically called if C<$err> is present.
+  $id = $self->subscribe("some:channel" => sub {
+    my ($self, $err) = @_;
+
+    return $self->publish("myapp:errors" => $err) if $err;
+    return $self->incr("subscribed:to:some:channel");
+  });
 
 =head2 Error handling
 
@@ -150,6 +156,24 @@ Emitted when a new connection has been established.
   $self->on(error => sub { my ($self, $err) = @_; ... });
 
 Emitted if an error occurs that can't be associated with an operation.
+
+=head2 message
+
+  $self->on(message => sub {
+    my ($self, $message, $channel) = @_;
+  });
+
+Emitted when a C<$message> is received on a C<$channel> after it has been
+L<subscribed|/subscribe> to.
+
+=head2 pmessage
+
+  $self->on(pmessage => sub {
+    my ($self, $message, $channel, $pattern) = @_;
+  });
+
+Emitted when a C<$message> is received on a C<$channel> matching a
+C<$pattern>, after it has been L<subscribed|/psubscribe> to.
 
 =head1 ATTRIBUTES
 
@@ -245,29 +269,25 @@ zscore and zunionstore.
 
 =head2 psubscribe
 
-Same as L</subscribe>, but C<@channels> is a list of patterns instead of exact
-channel names. See L<http://redis.io/commands/psubscribe> for details.
+  $id = $self->psubscribe(@patterns, sub { my ($self, $err) = @_; ... });
+
+Used to subscribe to specified channels that match C<@patterns>. See
+L<http://redis.io/topics/pubsub> for details.
+
+This event will cause L</pmessage> events to be emitted, unless C<$err> is set.
+
+C<$id> can be used to L</unsubscribe>.
 
 =head2 subscribe
 
-  $id = $self->subscribe(
-          @channels,
-          \%args,
-          sub {
-            my ($self, $err, $message, $channel) = @_;
-          },
-        );
+  $id = $self->subscribe(@channels, sub { my ($self, $err = @_; ... });
 
-Used to subscribe to specified channels. See L<http://redis.io/topics/pubsub>
-for details. This method is only useful in non-blocking context.
+Used to subscribe to specified C<@channels>. See L<http://redis.io/topics/pubsub>
+for details.
 
-C<%args> is optional, but can be used to retrieve raw data instead of
-just the messages:
+This event will cause L</message> events to be emitted, unless C<$err> is set.
 
-  $self->subscribe("some:channel", { raw => 1 }, sub {
-    my ($self, $err, $data) = @_;
-    # Example $data: [ "message", "some:channel", "example message" ]
-  });
+C<$id> can be used to L</unsubscribe>.
 
 =head2 unsubscribe
 
@@ -275,8 +295,8 @@ just the messages:
   $self->unsubscribe($event_name);
   $self->unsubscribe($event_name => $cb);
 
-Same as L<Mojo::EventEmitter/unsubscribe>, but can also close down a
-L</subscribe> connection based on an C<$id>.
+Same as L<Mojo::EventEmitter/unsubscribe>, but can also stop a pub/sub
+subscription based on an C<$id>.
 
 =cut
 
