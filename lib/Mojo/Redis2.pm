@@ -119,7 +119,7 @@ my $PROTOCOL_CLASS = do {
 };
 
 my %REDIS_METHODS = map { ($_, 1) } (
-  'append',   'blpop',           'brpop',            'brpoplpush',  'decr',             'decrby',
+  'append',   'decr',            'decrby',
   'del',      'exists',          'expire',           'expireat',    'get',              'getbit',
   'getrange', 'getset',          'hdel',             'hexists',     'hget',             'hgetall',
   'hincrby',  'hkeys',           'hlen',             'hmget',       'hmset',            'hset',
@@ -209,6 +209,42 @@ sub url {
 
 =head1 METHODS
 
+=head2 blpop
+
+  $res = $self->blpop(@keys);
+  $self = $self->blpop(@keys => sub {
+            my ($self, $err, $res) = @_;
+          });
+
+The blocking version will hang until one of the keys has data.
+
+The non-blocking version will make a new connection to the Redis server
+which allow C<$self> to issue other commands.
+
+=head2 brpop
+
+  $res = $self->brpop(@keys);
+  $self = $self->brpop(@keys => sub {
+            my ($self, $err, $res) = @_;
+          });
+
+The blocking version will hang until one of the keys has data.
+
+The non-blocking version will make a new connection to the Redis server
+which allow C<$self> to issue other commands.
+
+=head2 brpoplpush
+
+  $res = $self->brpoplpush($source => $destination);
+  $self = $self->brpoplpush($source => $destination => sub {
+            my ($self, $err, $res) = @_;
+          });
+
+The blocking version will hang until one of the keys has data.
+
+The non-blocking version will make a new connection to the Redis server
+which allow C<$self> to issue other commands.
+
 =head2 execute
 
   @res = $self->execute;
@@ -250,7 +286,7 @@ There are also shortcuts for most of the C<$redis_method>. Example:
 
 List of Redis methods available on C<$self>:
 
-append, blpop, brpop, brpoplpush, decr, decrby,
+append, decr, decrby,
 del, exists, expire, expireat, get, getbit,
 getrange, getset, hdel, hexists, hget, hgetall,
 hincrby, hkeys, hlen, hmget, hmset, hset,
