@@ -45,6 +45,8 @@ guard: The transaction will not be run if the guard goes out of scope.
 
 =head1 SYNOPSIS
 
+=head2 Blocking
+
   use Mojo::Redis2;
   my $redis = Mojo::Redis2->new;
 
@@ -57,7 +59,8 @@ guard: The transaction will not be run if the guard goes out of scope.
   # On success: @res = ("OK", "42", "OK");
   @res = $redis->pipelined->set(foo => "42")->get("foo")->set(bar => 123)->execute;
 
-  # Async example
+=head2 Non-blocking
+
   Mojo::IOLoop->delay(
     sub {
       my ($delay) = @_;
@@ -73,6 +76,21 @@ guard: The transaction will not be run if the guard goes out of scope.
       # On success: $res = [ "PONG", "42" ];
     },
   );
+
+=head2 Pub/sub
+
+L<Mojo::Redis2> can L</subscribe> and re-use the same object to C<publish> or
+run other Redis commands, since it can keep track of multiple connections to
+the same Redis server.
+
+  $id = $self->subscribe("some:channel" => sub {
+    my ($self, $err, $message, $channel) = @_;
+
+    $self->incr("messsages_from:some:channel");
+    $self->unsubscribe($id); # stop subscription
+  });
+
+L</unsubscribe> will be automatically called if C<$err> is present.
 
 =cut
 
@@ -213,6 +231,33 @@ sunion, sunionstore, ttl, type, zadd, zcard,
 zcount, zincrby, zinterstore, zrange, zrangebyscore, zrank,
 zrem, zremrangebyrank, zremrangebyscore, zrevrange, zrevrangebyscore, zrevrank,
 zscore and zunionstore.
+
+=head2 psubscribe
+
+Same as L</subscribe>, but C<@channels> is a list of patterns instead of exact
+channel names. See L<http://redis.io/commands/psubscribe> for details.
+
+=head2 subscribe
+
+  $id = $self->subscribe(
+          @channels,
+          \%args,
+          sub {
+            my ($self, $err, $message, $channel) = @_;
+          },
+        );
+
+Used to subscribe to specified channels. See L<http://redis.io/topics/pubsub>
+for details. This method is only useful in non-blocking context.
+
+=head2 unsubscribe
+
+  $self->unsubscribe($id);
+  $self->unsubscribe($event_name);
+  $self->unsubscribe($event_name => $cb);
+
+Same as L<Mojo::EventEmitter/unsubscribe>, but can also close down a
+L</subscribe> connection based on an C<$id>.
 
 =cut
 
