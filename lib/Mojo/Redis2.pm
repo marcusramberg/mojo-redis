@@ -108,6 +108,14 @@ my %REDIS_METHODS = map { ($_, 1) } (
   'zscore',   'zunionstore',
 );
 
+=head1 EVENTS
+
+=head2 error
+
+  $self->on(error => sub { my ($self, $err) = @_; ... });
+
+Emitted if an error occurs that can't be associated with an operation.
+
 =head1 ATTRIBUTES
 
 =head2 protocol
