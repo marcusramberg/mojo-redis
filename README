@@ -1,0 +1,25 @@
+NAME
+    Mojo::Redis2 - Pure-Perl non-blocking I/O Redis driver
+
+VERSION
+    0.01
+
+DESCRIPTION
+    Mojo::Redis2 is a pure-Perl non-blocking I/O Redis <http://redis.io>
+    driver for the Mojolicious real-time framework.
+
+SYNOPSIS
+      use Mojo::Redis2;
+      my $redis = Mojo::Redis2->new;
+
+ATTRIBUTES
+METHODS
+COPYRIGHT AND LICENSE
+    Copyright (C) 2014, Jan Henning Thorsen
+
+    This program is free software, you can redistribute it and/or modify it
+    under the terms of the Artistic License version 2.0.
+
+AUTHOR
+    Jan Henning Thorsen - "jhthorsen@cpan.org"
+

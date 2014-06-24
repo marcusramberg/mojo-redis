@@ -1,0 +1,11 @@
+^mypp.yml
+.git
+\.old
+\.swp
+~$
+^blib/
+^Makefile$
+^MANIFEST.*
+^MYMETA.*
+^Mojo-Redis2
+^README.pod
