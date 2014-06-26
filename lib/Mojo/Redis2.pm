@@ -471,7 +471,7 @@ sub _dequeue {
   my $c = $self->{connections}{$id};
   my $loop = $self->_loop($c->{nb});
   my $stream = $loop->stream($id) or return $self;
-  my $queue = $self->{connections}{$id}{queue} ||= [];
+  my $queue = $c->{queue} ||= [];
 
   # Make sure connection has not been corrupted while event loop was stopped
   if (!$loop->is_running and $stream->is_readable) {
@@ -483,7 +483,7 @@ sub _dequeue {
     my $buf = $self->_op_to_command(shift @$queue);
     do { local $_ = $buf; s!\r\n!\\r\\n!g; warn "[redis:$id:write] ($_)\n" } if DEBUG;
     $stream->write($buf);
-    last unless $self->{pipelined};
+    last unless $c->{pipelined};
   }
 
   delete $c->{queue} unless @$queue;
@@ -551,24 +551,36 @@ sub _read {
   my ($self, $id, $buf) = @_;
   my $protocol = $self->protocol;
   my $c = $self->{connections}{$id};
-  my $err = '';
 
   do { local $_ = $buf; s!\r\n!\\r\\n!g; warn "[redis:$id:read] ($_)\n" } if DEBUG;
   $protocol->parse($buf);
 
+  MESSAGE:
   while (my $message = $protocol->get_message) {
     my ($type, $data) = $self->_reencode_message($message);
-    $err ||= $data if $type eq 'error';
-    next if --$c->{skip} >= 0;
+
+    if ($type eq 'error') {
+      $c->{err} ||= $data;
+      unless ($c->{pipelined}) {
+        push @{ $c->{res} }, undef for 1..$c->{n};
+        delete $c->{$_} for qw( skip queue );
+        next MESSAGE;
+      }
+    }
+
+    if (--$c->{skip} >= 0) {
+      next MESSAGE;
+    }
+
     --$c->{n};
     push @{ $c->{res} }, $type eq 'error' ? undef : $data;
   }
 
-  if ($c->{n}) {
+  if ($c->{n} and $c->{queue}) {
     $self->_dequeue($id);
   }
   elsif (my $cb = delete $c->{cb}) {
-    $self->$cb($err, delete $c->{res});
+    $self->$cb($c->{err}, delete $c->{res});
   }
   else {
     die "Should never come to this: got result but no callback for $buf";

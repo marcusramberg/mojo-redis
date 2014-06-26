@@ -7,9 +7,6 @@ plan skip_all => 'Missing MOJO_REDIS_URL=redis://localhost/14' unless $ENV{MOJO_
 my $redis = Mojo::Redis2->new;
 my @res;
 
-is $redis->url, $ENV{MOJO_REDIS_URL}, 'url() is set';
-isa_ok $redis->protocol, $ENV{MOJO_REDIS_PROTOCOL};
-
 @res = eval { $redis->execute };
 is_deeply \@res, [], 'no commands to execute' or diag join '|', @res;
 
