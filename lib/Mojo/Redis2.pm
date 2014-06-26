@@ -106,14 +106,17 @@ empty string on success.
 =cut
 
 use Mojo::Base 'Mojo::EventEmitter';
+use Mojo::IOLoop;
 use Mojo::URL;
+use Mojo::Util;
 use Carp ();
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG} || 0;
+use constant DEFAULT_PORT => 6379;
 
 our $VERSION = '0.01';
 
 my $PROTOCOL_CLASS = do {
-  my $class = $ENV{MOJO_REDIS_PROTOCOL} || eval "require Protocol::Redis::XS; 'Protocol::Redis::XS'" || 'Protocol::Redis';
+  my $class = $ENV{MOJO_REDIS_PROTOCOL} ||= eval "require Protocol::Redis::XS; 'Protocol::Redis::XS'" || 'Protocol::Redis';
   eval "require $class; 1" or die $@;
   $class;
 };
@@ -177,6 +180,13 @@ C<$pattern>, after it has been L<subscribed|/psubscribe> to.
 
 =head1 ATTRIBUTES
 
+=head2 encoding
+
+  $str = $self->encoding;
+  $self = $self->encoding('UTF-8');
+
+Holds the encoding using for data from/to Redis. Default is UTF-8.
+
 =head2 protocol
 
   $obj = $self->protocol;
@@ -189,6 +199,7 @@ L<Protocol::Redis::XS> need to be installed manually.
 
 =cut
 
+has encoding => 'UTF-8';
 has protocol => sub { $PROTOCOL_CLASS->new(api => 1); };
 
 =head2 url
@@ -202,7 +213,7 @@ is C<redis://localhost:6379>.
 =cut
 
 sub url {
-  return $_[0]->{url} ||= Mojo::URL->new('redis://localhost:6379') if @_ == 1;
+  return $_[0]->{url} ||= Mojo::URL->new($ENV{MOJO_REDIS_URL} || 'redis://localhost:6379') if @_ == 1;
   $_[0]->{url} = Mojo::URL->new($_[1]);
   $_[0];
 }
@@ -258,6 +269,27 @@ is an array-ref with one list-item per L<prepared|/prepare> redis command.
 
 C<$res> will be returned as a list when called in blocking context.
 
+=cut
+
+sub execute {
+  my ($self, $cb) = @_;
+  my ($err, $res);
+
+  $self->_cleanup unless ($self->{pid} //= $$) eq $$; # TODO: Fork safety
+  $self->_execute({
+    cb => $cb || sub { shift->_loop(0)->stop; ($err, $res) = @_; },
+    nb => $cb ? 1 : 0,
+    pipelined => delete $self->{pipelined} || 0,
+    queue => delete $self->{queue} || [],
+    type => 'basic',
+  });
+
+  return $self if $cb;
+  $self->_loop(0)->start;
+  die $err if $err;
+  return @$res;
+}
+
 =head2 pipelined
 
   $self = $self->pipelined;
@@ -303,6 +335,14 @@ zcount, zincrby, zinterstore, zrange, zrangebyscore, zrank,
 zrem, zremrangebyrank, zremrangebyscore, zrevrange, zrevrangebyscore, zrevrank,
 zscore and zunionstore.
 
+=cut
+
+sub prepare {
+  my ($self, @op) = @_;
+  push @{ $self->{queue} }, [@op];
+  return $self;
+}
+
 =head2 psubscribe
 
   $id = $self->psubscribe(@patterns, sub { my ($self, $err) = @_; ... });
@@ -339,13 +379,193 @@ subscription based on an C<$id>.
 sub AUTOLOAD {
   my $self = shift;
   my ($package, $method) = split /::(\w+)$/, our $AUTOLOAD;
+  my $op = uc $method;
 
   unless ($REDIS_METHODS{$method}) {
     Carp::croak(qq{Can't locate object method "$method" via package "$package"});
   }
 
-  eval "sub $method { shift->prepare($method => \@_); }; 1" or die $@;
-  $self->prepare($method => @_);
+  eval "sub $method { shift->prepare($op => \@_); }; 1" or die $@;
+  $self->prepare($op => @_);
+}
+
+sub _cleanup {
+  # TODO
+}
+
+sub _connect {
+  my ($self, $op) = @_;
+  my $url = $self->url;
+  my $id;
+
+  Scalar::Util::weaken($self);
+  $id = $self->_loop($op->{nb})->client(
+    { address => $url->host, port => $url->port || DEFAULT_PORT },
+    sub {
+      my ($loop, $err, $stream) = @_;
+
+      if ($err) {
+        delete $self->{connections}{$id};
+        return $self->_error($id, $err);
+      }
+
+      # Connection established
+      $stream->timeout(0) unless $op->{type} eq 'basic';
+      $stream->on(close => sub { $self->_error($id) });
+      $stream->on(error => sub { $self and $self->_error($id, $_[1]) });
+      $stream->on(read => sub { $self->_read($id, $_[1]) });
+      $self->_connected($id)->emit(connection => $id);
+    }
+  );
+
+  $self->{connections}{$id} = $op;
+  $self;
+}
+
+sub _connected {
+  my ($self, $id) = @_;
+  my ($password) = reverse split /:/, +($self->url->userinfo // '');
+  my $db = $self->url->path->[0];
+  my $c = $self->{connections}{$id};
+
+  warn "[redis:$id:connected] @{[$self->url]}\n" if DEBUG == 2;
+
+  # NOTE: unshift() will cause AUTH to be sent before SELECT
+  if (length $db) {
+    $c->{skip}++;
+    unshift @{ $c->{queue} }, [ SELECT => $db ];
+  }
+  if ($password) {
+    $c->{skip}++;
+    unshift @{ $c->{queue} }, [ AUTH => $password ];
+  }
+
+  $self->_dequeue($id);
+}
+
+sub _dequeue {
+  my ($self, $id) = @_;
+  my $c = $self->{connections}{$id};
+  my $loop = $self->_loop($c->{nb});
+  my $stream = $loop->stream($id) or return $self;
+  my $queue = $self->{connections}{$id}{queue} ||= [];
+
+  # Make sure connection has not been corrupted while event loop was stopped
+  if (!$loop->is_running and $stream->is_readable) {
+    $stream->close;
+    return $self;
+  }
+
+  while (@$queue) {
+    my $buf = $self->_op_to_command(shift @$queue);
+    do { local $_ = $buf; s!\r\n!\\r\\n!g; warn "[redis:$id:write] ($_)\n" } if DEBUG;
+    $stream->write($buf);
+    last unless $self->{pipelined};
+  }
+
+  delete $c->{queue} unless @$queue;
+  return $self;
+}
+
+sub _error {
+  my ($self, $id, $err) = @_;
+  my $c = delete $self->{connections}{$id};
+  my $cb = $c->{cb};
+
+  warn "[redis:$id:error] $err\n" if DEBUG;
+
+  return $self->_connect($c) if $c->{queue};
+  return $self->$cb($err, []) if $cb;
+  return $self->emit_safe(error => $err || 'Premature connection close');
+}
+
+sub _execute {
+  my ($self, $op) = @_;
+  my $connections = $self->{connections} || {};
+  my ($c, $id);
+
+  $op->{n} = @{ $op->{queue} || [] };
+
+  unless ($op->{n}) {
+    Scalar::Util::weaken($self);
+    my $cb = $op->{cb};
+    $self->_loop($op->{nb})->timer(0 => sub { $self and $self->$cb('', []); });
+    return $self;
+  }
+
+  for (keys %$connections) {
+    $c = $connections->{$_};
+    next if $c->{nb} ne $op->{nb};
+    next if $c->{type} ne $op->{type};
+    next if $c->{queue};
+    $id = $_;
+    last;
+  }
+
+  return $self->_connect($op) unless $id;
+  $c->{$_} = $op->{$_} for keys %$op;
+  return $self->_dequeue($id);
+}
+
+sub _loop {
+  $_[1] ? Mojo::IOLoop->singleton : ($_[0]->{ioloop} ||= Mojo::IOLoop->new);
+}
+
+sub _op_to_command {
+  my ($self, $op) = @_;
+  my @data;
+
+  for my $token (@$op) {
+    $token = Mojo::Util::encode($self->encoding, $token) if $self->encoding;
+    push @data, {type => '$', data => $token};
+  }
+
+  $self->protocol->encode({type => '*', data => \@data});
+}
+
+sub _read {
+  my ($self, $id, $buf) = @_;
+  my $protocol = $self->protocol;
+  my $c = $self->{connections}{$id};
+  my $err = '';
+
+  do { local $_ = $buf; s!\r\n!\\r\\n!g; warn "[redis:$id:read] ($_)\n" } if DEBUG;
+  $protocol->parse($buf);
+
+  while (my $message = $protocol->get_message) {
+    my ($type, $data) = $self->_reencode_message($message);
+    $err ||= $data if $type eq 'error';
+    next if --$c->{skip} >= 0;
+    --$c->{n};
+    push @{ $c->{res} }, $type eq 'error' ? undef : $data;
+  }
+
+  if ($c->{n}) {
+    $self->_dequeue($id);
+  }
+  else {
+    my $cb = $c->{cb};
+    $self->$cb($err, delete $c->{res});
+  }
+}
+
+sub _reencode_message {
+  my ($self, $message) = @_;
+  my ($type, $data) = @{$message}{qw( type data )};
+
+  if ($type ne '*' and $self->encoding and $data) {
+    $data = Encode::decode($self->encoding, $data);
+  }
+
+  if ($type eq '-') {
+    return error => $data;
+  }
+  elsif ($type ne '*') {
+    return data => $data;
+  }
+  else {
+    return data => [ map { $self->_reencode_message($_); } @$data ];
+  }
 }
 
 =head1 COPYRIGHT AND LICENSE
