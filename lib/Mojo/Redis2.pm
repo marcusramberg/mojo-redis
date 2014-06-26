@@ -174,13 +174,6 @@ C<$pattern>, after it has been L<subscribed|/psubscribe> to.
 
 =head1 ATTRIBUTES
 
-=head2 encoding
-
-  $str = $self->encoding;
-  $self = $self->encoding('UTF-8');
-
-Holds the encoding using for data from/to Redis. Default is UTF-8.
-
 =head2 protocol
 
   $obj = $self->protocol;
@@ -193,7 +186,6 @@ L<Protocol::Redis::XS> need to be installed manually.
 
 =cut
 
-has encoding => 'UTF-8';
 has protocol => sub { $PROTOCOL_CLASS->new(api => 1); };
 
 =head2 url
@@ -478,8 +470,8 @@ sub _dequeue {
     return $self;
   }
 
-  while (@$queue) {
-    my $buf = $self->_op_to_command(shift @$queue);
+  while (my $op = shift @$queue) {
+    my $buf = $self->protocol->encode({type => '*', data => [map { +{type => '$', data => $_} } @$op]});
     do { local $_ = $buf; s!\r\n!\\r\\n!g; warn "[redis:$id:write] ($_)\n" } if DEBUG;
     $stream->write($buf);
     last unless $c->{pipelined};
@@ -534,18 +526,6 @@ sub _loop {
   $_[1] ? Mojo::IOLoop->singleton : ($_[0]->{ioloop} ||= Mojo::IOLoop->new);
 }
 
-sub _op_to_command {
-  my ($self, $op) = @_;
-  my @data;
-
-  for my $token (@$op) {
-    $token = Mojo::Util::encode($self->encoding, $token) if $self->encoding;
-    push @data, {type => '$', data => $token};
-  }
-
-  $self->protocol->encode({type => '*', data => \@data});
-}
-
 sub _read {
   my ($self, $id, $buf) = @_;
   my $protocol = $self->protocol;
@@ -595,10 +575,6 @@ sub _read {
 sub _reencode_message {
   my ($self, $message) = @_;
   my ($type, $data) = @{$message}{qw( type data )};
-
-  if ($type ne '*' and $self->encoding and $data) {
-    $data = Encode::decode($self->encoding, $data);
-  }
 
   if ($type eq '-') {
     return \ $data;
