@@ -307,14 +307,20 @@ sub pipelined {
 =head2 prepare
 
   $self = $self->prepare($redis_method => @redis_args);
+  $self = $self->prepare($redis_method => @redis_args, sub { ... });
 
 Used to prepare commands for L</execute>. Example:
 
   $self->prepare(GET => "foo");
+  $self->prepare(GET => "foo", sub { ... });
+
+Passing on a callback at the end will automatically call L</execute> with
+the given callback as argument.
 
 There are also shortcuts for most of the C<$redis_method>. Example:
 
   $self->get("foo");
+  $self->get("foo", sub { ... });
 
 List of Redis methods available on C<$self>:
 
@@ -338,8 +344,12 @@ zscore and zunionstore.
 =cut
 
 sub prepare {
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
   my ($self, @op) = @_;
+
   push @{ $self->{queue} }, [@op];
+
+  return $self->execute($cb) if $cb;
   return $self;
 }
 

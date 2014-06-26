@@ -22,7 +22,7 @@ is_deeply \@res, ['OK', '42'], 'got set+get response' or diag join '|', @res;
 Mojo::IOLoop->delay(
   sub {
     my ($delay) = @_;
-    $redis->ping->get("mojo:redis2:scalar")->execute($delay->begin);
+    $redis->ping->get("mojo:redis2:scalar", $delay->begin);
   },
   sub {
     my ($delay, $err, $res) = @_;
