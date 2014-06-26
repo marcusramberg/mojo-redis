@@ -399,8 +399,21 @@ sub AUTOLOAD {
   $self->prepare($op => @_);
 }
 
+sub DESTROY { shift->_cleanup; }
+
 sub _cleanup {
-  # TODO
+  my $self = shift;
+  my $connections = delete $self->{connections};
+
+  delete $self->{pid};
+
+  for my $id (keys %$connections) {
+    my $c = $connections->{$id};
+    my $cb = $c->{cb};
+    my $loop = $self->_loop($c->{nb}) or next;
+    $loop->remove($id);
+    $self->$cb('Premature connection close', []) if $cb and $c->{queue};
+  }
 }
 
 sub _connect {
@@ -482,11 +495,12 @@ sub _error {
   my $c = delete $self->{connections}{$id};
   my $cb = $c->{cb};
 
-  warn "[redis:$id:error] $err\n" if DEBUG;
+  warn "[redis:$id:error] @{[$err // 'close']}\n" if DEBUG;
 
   return $self->_connect($c) if $c->{queue};
+  return $self unless defined $err;
   return $self->$cb($err, []) if $cb;
-  return $self->emit_safe(error => $err || 'Premature connection close');
+  return $self->emit_safe(error => $err);
 }
 
 sub _execute {
@@ -553,9 +567,11 @@ sub _read {
   if ($c->{n}) {
     $self->_dequeue($id);
   }
-  else {
-    my $cb = $c->{cb};
+  elsif (my $cb = delete $c->{cb}) {
     $self->$cb($err, delete $c->{res});
+  }
+  else {
+    die "Should never come to this: got result but no callback for $buf";
   }
 }
 
