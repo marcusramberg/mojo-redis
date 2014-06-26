@@ -94,7 +94,7 @@ the same Redis server.
   $id = $self->subscribe("some:channel" => sub {
     my ($self, $err) = @_;
 
-    return $self->publish("myapp:errors" => $err) if $err;
+    return $self->publish("myapp:errors" => $err)->execute if $err;
     return $self->incr("subscribed:to:some:channel");
   });
 
@@ -369,6 +369,11 @@ This event will cause L</message> events to be emitted, unless C<$err> is set.
 
 C<$id> can be used to L</unsubscribe>.
 
+=cut
+
+sub psubscribe { shift->_subscribe(PSUBSCRIBE => @_); }
+sub subscribe { shift->_subscribe(SUBSCRIBE => @_); }
+
 =head2 unsubscribe
 
   $self->unsubscribe($id);
@@ -545,39 +550,45 @@ sub _read {
   my ($self, $id, $buf) = @_;
   my $protocol = $self->protocol;
   my $c = $self->{connections}{$id};
+  my $event;
 
   do { local $_ = $buf; s!\r\n!\\r\\n!g; warn "[redis:$id:read] ($_)\n" } if DEBUG;
   $protocol->parse($buf);
 
   MESSAGE:
   while (my $message = $protocol->get_message) {
-    my ($type, $data) = $self->_reencode_message($message);
+    my $data = $self->_reencode_message($message);
 
-    if ($type eq 'error') {
-      $c->{err} ||= $data;
-      unless ($c->{pipelined}) {
+    if (ref $data eq 'SCALAR') {
+      $c->{err} ||= $$data;
+      if ($c->{pipelined}) {
+        push @{ $c->{res} }, undef;
+      }
+      else {
         push @{ $c->{res} }, undef for 1..$c->{n};
         delete $c->{$_} for qw( skip queue );
         next MESSAGE;
       }
     }
-
-    if (--$c->{skip} >= 0) {
+    elsif (ref $data eq 'ARRAY' and $data->[0] =~ /^(p?message)$/i) {
+      $event = shift @$data;
+      $self->emit($event => reverse @$data);
+    }
+    elsif (--$c->{skip} >= 0) {
       next MESSAGE;
+    }
+    else {
+      push @{ $c->{res} }, $data;
     }
 
     --$c->{n};
-    push @{ $c->{res} }, $type eq 'error' ? undef : $data;
   }
 
   if ($c->{n} and $c->{queue}) {
     $self->_dequeue($id);
   }
-  elsif (my $cb = delete $c->{cb}) {
-    $self->$cb($c->{err}, delete $c->{res});
-  }
-  else {
-    die "Should never come to this: got result but no callback for $buf";
+  elsif (!$event and my $cb = delete $c->{cb}) {
+    $self->$cb($c->{err} // '', delete $c->{res});
   }
 }
 
@@ -590,14 +601,27 @@ sub _reencode_message {
   }
 
   if ($type eq '-') {
-    return error => $data;
+    return \ $data;
   }
   elsif ($type ne '*') {
-    return data => $data;
+    return $data;
   }
   else {
-    return data => [ map { $self->_reencode_message($_); } @$data ];
+    return [ map { $self->_reencode_message($_); } @$data ];
   }
+}
+
+sub _subscribe {
+  my $cb = ref $_[-1] eq 'CODE' ? pop : undef;
+  my ($self, @op) = @_;
+
+  $self->_execute({
+    cb => $cb,
+    nb => 1,
+    pipelined => 0,
+    queue => [[@op]],
+    type => 'pubsub',
+  });
 }
 
 =head1 COPYRIGHT AND LICENSE
