@@ -485,7 +485,7 @@ Mojo::Redis - DEPRECATED Redis client
 
 =head1 DESCRIPTION
 
-L<Mojo::Redis> is (temporarily) replaced by L<Mojo::Redis2>.
+L<Mojo::Redis> is replaced by L<Mojo::Redis2>.
 
 THIS MODULE IS NO LONGER MAINTAINED AND WILL BE REPLACED BY A COMPLETELY NEW
 API DURING 2015.
