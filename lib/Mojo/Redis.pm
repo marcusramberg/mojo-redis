@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '0.9928';
+our $VERSION = '1.00';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -496,8 +496,10 @@ module will be completely replaced by the code from L<Mojo::Redis2>.
 YOU SHOULD NOT USE THIS MODULE. THE RISK OF MEMORY LEAKS AND MISSING OUT ON
 ERRORS IS INEVITABLE.
 
-The exact data for replacement is not yet set, but we incourage you to
-replace your code with L<Mojo::Redis2> now.
+The exact date for replacement is not yet set, but when it's replaced your
+existing L<Mojo::Redis> code I<will> break.
+
+REPLACE L<Mojo::Redis> WITH L<Mojo::Redis2> NOW.
 
 =head1 EVENTS
 
