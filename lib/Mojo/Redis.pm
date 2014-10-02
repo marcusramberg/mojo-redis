@@ -487,8 +487,6 @@ Mojo::Redis - DEPRECATED Redis client
 
 L<Mojo::Redis> is (temporarily) replaced by L<Mojo::Redis2>.
 
-=head1 DISCLAIMER
-
 THIS MODULE IS NO LONGER MAINTAINED AND WILL BE REPLACED BY A COMPLETELY NEW
 API DURING 2015.
 
@@ -500,11 +498,6 @@ ERRORS IS INEVITABLE.
 
 The exact data for replacement is not yet set, but we incourage you to
 replace your code with L<Mojo::Redis2> now.
-
-=head1 SYNOPSIS
-
-  use Mojo::Redis2;
-  ...
 
 =head1 EVENTS
 
