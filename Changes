@@ -1,6 +1,9 @@
 This file documents the revision history for Perl extension Mojo::Redis
 
-1.00
+1.01     Sun Jan 18 13:33:26 2015
+       - Replace emit_safe() with emit()
+
+1.00     Thu Oct  2 17:26:26 2014
        - Mojo::Redis is deprecated
 
 0.9928   Fri May 30 07:50:27 2014

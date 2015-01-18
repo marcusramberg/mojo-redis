@@ -1,6 +1,6 @@
 package Mojo::Redis;
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
@@ -333,7 +333,7 @@ sub _reencode_message {
   }
 
   if ($type eq '-') {
-    $self->emit_safe(error => $data);
+    $self->emit(error => $data);
     return;
   }
   elsif ($type ne '*') {
@@ -359,7 +359,7 @@ sub _return_command_data {
     1;
   } or do {
     my $err = $@;
-    $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
+    $self->has_subscribers('error') ? $self->emit(error => $err) : warn $err;
   };
 }
 
@@ -390,7 +390,7 @@ sub _inform_queue {
       1;
     } or do {
       my $err = $@;
-      $self->has_subscribers('error') ? $self->emit_safe(error => $err) : warn $err;
+      $self->has_subscribers('error') ? $self->emit(error => $err) : warn $err;
     };
   }
 }
@@ -404,11 +404,11 @@ sub _on_blpop {
   $self->{connections}{$id} = $self->_clone(undef, timeout => 0);
 
   $handler = sub {
-    $self->emit_safe($id => '', reverse @{ $_[1] });
+    $self->emit($id => '', reverse @{ $_[1] });
     $self->{connections}{$id}->$method(@args, 0, $handler);
   };
 
-  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
+  $self->{connections}{$id}->on(error => sub { $self->emit($id => $_[1], undef, undef); });
   $self->{connections}{$id}->$method(@args, 0, $handler);
 }
 
@@ -420,7 +420,7 @@ sub _on_message {
   Scalar::Util::weaken($self);
   $self->{connections}{$id} and return;
   $self->{connections}{$id} = $self->_clone(undef, timeout => 0, cb_queue => [(sub {}) x (@channels - 1)]);
-  $self->{connections}{$id}->on(error => sub { $self->emit_safe($id => $_[1], undef, undef); });
+  $self->{connections}{$id}->on(error => sub { $self->emit($id => $_[1], undef, undef); });
   $self->{connections}{$id}->execute(
     [ subscribe => @channels ],
     sub {
