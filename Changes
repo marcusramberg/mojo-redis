@@ -1,6 +1,6 @@
 Revision history for perl distribution Mojo-Redis
 
-1.02 Not Released
+1.02 2015-07-14T17:20:07+0200
  - Deprecated with even more verbose message.
 
 1.01 2015-01-18T13:33:26Z
