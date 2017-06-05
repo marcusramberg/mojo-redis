@@ -1,21 +1,29 @@
 package Mojo::Redis;
-use Mojo::Base -base;
+use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::URL;
+use Mojo::Redis::Connection;
+use Mojo::Redis::Database;
+
+has protocol_class => do {
+  my $class = $ENV{MOJO_REDIS_PROTOCOL};
+  $class ||= eval q(require Protocol::Redis::XS; 'Protocol::Redis::XS');
+  $class ||= 'Protocol::Redis';
+  eval "require $class; 1" or die $@;
+  $class;
+};
 
 has max_connections => 5;
 has url => sub { Mojo::URL->new('redis://localhost:6379') };
 
 sub db { Mojo::Redis::Database->new(connection => $_[0]->_dequeue, redis => $_[0]); }
-sub new { @_ > 1 ? shift->SUPER::new->from_string(@_) : shift->SUPER::new }
-sub pubsub { Mojo::Redis::PubSub->new(connection => $_[0]->_dequeue, redis => $_[0]) }
-sub from_string { ref $_[1] ? $_[1] : Mojo::URL->new($_[1]) }
+sub new { @_ == 2 ? $_[0]->SUPER::new->url(Mojo::URL->new($_[1])) : $_[0]->SUPER::new }
 
 sub _dequeue {
   my $self = shift;
   delete @$self{qw(pid queue)} unless ($self->{pid} //= $$) eq $$;    # Fork-safety
-  while (my $conn = shift @{$self->{queue} || []}) { return $conn if $conn->ping }
-  return Mojo::Redis::Connection->new(url => $self->url);
+  while (my $conn = shift @{$self->{queue} || []}) { return $conn }
+  return Mojo::Redis::Connection->new(protocol => $self->protocol_class->new(api => 1), url => $self->url);
 }
 
 sub _enqueue {
