@@ -64,7 +64,7 @@ sub disconnect {
 }
 
 sub write {
-  my $cb       = ref $_[-1] eq 'CODE' ? pop : sub { shift->emit(error => $_[1]) if $_[1] };
+  my $cb       = ref $_[-1] eq 'CODE' ? pop : undef;
   my $self     = shift;
   my $encoding = $self->encoding;
 
@@ -77,8 +77,8 @@ sub write {
 
 sub _on_close_cb {
   my $self = shift;
-  Scalar::Util::weaken($self);
 
+  Scalar::Util::weaken($self);
   return sub {
     return unless $self;
     my ($stream, $err) = @_;
@@ -90,8 +90,8 @@ sub _on_close_cb {
 
 sub _on_read_cb {
   my $self = shift;
-  Scalar::Util::weaken($self);
 
+  Scalar::Util::weaken($self);
   return sub {
     my ($stream, $chunk) = @_;
     do { local $_ = $chunk; s!\r\n!\\r\\n!g; warn "[$self->{url}] >>> ($_)\n" } if DEBUG;
@@ -116,7 +116,7 @@ sub _write {
 
   my $op = shift @$queue;
   do { local $_ = $op->[0]; s!\r\n!\\r\\n!g; warn "[$self->{url}] <<< ($_)\n" } if DEBUG;
-  push @{$self->{waiting}}, $op->[1];
+  push @{$self->{waiting}}, $op->[1] || sub { shift->emit(error => $_[1]) if $_[1] };
   $self->{stream}->write($op->[0]);
 }
 
