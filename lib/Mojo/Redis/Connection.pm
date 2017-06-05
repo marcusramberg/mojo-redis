@@ -26,28 +26,27 @@ sub connect {
     }
   );
 
-  my $url      = $self->url;
-  my $db       = $url->path->[0];
-  my @userinfo = split /:/, +($url->userinfo // '');
+  my $url = $self->url;
+  my $db  = $url->path->[0];
 
   $self->{id} = $self->_loop->client(
     {address => $url->host, port => $url->port || 6379},
     sub {
       my ($loop, $err, $stream) = @_;
-      return $self->_close($err) if $err;
+      my $close_cb = $self->_on_close_cb;
+      return $self->$close_cb($err) if $err;
 
       warn "[$self->{url}] CONNECTED\n" if DEBUG;
-      $self->emit('connect');
       $stream->timeout(0);
-      $stream->on(close => $self->_on_close_cb);
-      $stream->on(error => $self->_on_close_cb);
+      $stream->on(close => $close_cb);
+      $stream->on(error => $close_cb);
       $stream->on(read  => $self->_on_read_cb);
 
-      # NOTE: unshift() will cause AUTH to be sent before SELECT
-      unshift @{$self->{write}}, [SELECT => $db]          if $db;
-      unshift @{$self->{write}}, [AUTH   => $userinfo[1]] if length $userinfo[1];
+      unshift @{$self->{write}}, ["SELECT $db"] if $db;
+      unshift @{$self->{write}}, ["AUTH @{[$url->password]}"] if length $url->password;
 
       $self->{stream} = $stream;
+      $self->emit('connect');
       $self->_write;
     },
   );

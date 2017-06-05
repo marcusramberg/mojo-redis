@@ -6,9 +6,6 @@ plan skip_all => 'TEST_ONLINE=redis://localhost' unless $ENV{TEST_ONLINE};
 
 my $redis = Mojo::Redis->new($ENV{TEST_ONLINE});
 
-like $redis->protocol_class, qr{Protocol::Redis}, 'connection_class';
-is $redis->max_connections, 5, 'max_connections';
-
 my $db   = $redis->db;
 my $conn = $db->connection;
 isa_ok($db,   'Mojo::Redis::Database');
