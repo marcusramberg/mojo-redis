@@ -41,9 +41,9 @@ sub connect {
       warn "[$self->{url}] CONNECTED\n" if DEBUG;
       $self->emit('connect');
       $stream->timeout(0);
-      $stream->on(close => sub { $self and $self->_close });
-      $stream->on(error => sub { $self and $self->_close($_[1]) });
-      $stream->on(read  => sub { $self->_read($_[1]) });
+      $stream->on(close => $self->_on_close_cb);
+      $stream->on(error => $self->_on_close_cb);
+      $stream->on(read  => $self->_on_read_cb);
 
       # NOTE: unshift() will cause AUTH to be sent before SELECT
       unshift @{$self->{write}}, [SELECT => $db]          if $db;
@@ -77,21 +77,30 @@ sub write {
   return $self;
 }
 
-sub _close {
-  my ($self, $err) = @_;
-  delete $self->{$_} for qw(id stream);
-  $self->emit(error => $err) if $err;
-  warn "[$self->{url}] ERROR $err\n" if DEBUG and $err;
-  warn "[$self->{url}] CLOSED\n"     if DEBUG and !$err;
-  return $self;
+sub _on_close_cb {
+  my $self = shift;
+  Scalar::Util::weaken($self);
+
+  return sub {
+    return unless $self;
+    my ($stream, $err) = @_;
+    delete $self->{$_} for qw(id stream);
+    $self->emit(error => $err) if $err;
+    warn "[$self->{url}] ERROR $err\n" if DEBUG and $err;
+    warn "[$self->{url}] CLOSED\n"     if DEBUG and !$err;
+  };
 }
 
-sub _read {
-  my ($self, $chunk) = @_;
-  my $protocol = $self->protocol;
+sub _on_read_cb {
+  my $self = shift;
+  Scalar::Util::weaken($self);
 
-  do { local $_ = $chunk; s!\r\n!\\r\\n!g; warn "[$self->{url}] >>> ($_)\n" } if DEBUG;
-  $protocol->parse($chunk);
+  return sub {
+    my ($stream, $chunk) = @_;
+    my $protocol = $self->protocol;
+    do { local $_ = $chunk; s!\r\n!\\r\\n!g; warn "[$self->{url}] >>> ($_)\n" } if DEBUG;
+    $protocol->parse($chunk);
+  };
 }
 
 sub _write {
