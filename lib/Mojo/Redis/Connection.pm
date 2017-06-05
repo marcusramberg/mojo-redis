@@ -12,14 +12,9 @@ has url      => sub { Carp::confess('url is not set') };
 has _loop    => sub { Mojo::IOLoop->singleton };
 
 sub connect {
-  my $self     = shift;
-  my $url      = $self->url;
-  my $db       = $url->path->[0];
-  my @userinfo = split /:/, +($url->userinfo // '');
-  my $id;
-
-  return $self if $self->{id};
-
+  my ($self, $cb) = @_;
+  $self->once(connect => $cb) if $cb;
+  return $self if $self->{id};    # Connecting
   Scalar::Util::weaken($self);
 
   $self->protocol->on_message(
@@ -31,7 +26,10 @@ sub connect {
     }
   );
 
-  warn "[$self->{url}] CONNECTING\n" if DEBUG;
+  my $url      = $self->url;
+  my $db       = $url->path->[0];
+  my @userinfo = split /:/, +($url->userinfo // '');
+
   $self->{id} = $self->_loop->client(
     {address => $url->host, port => $url->port || 6379},
     sub {
@@ -54,6 +52,7 @@ sub connect {
     },
   );
 
+  warn "[$self->{url}] CONNECTING\n" if DEBUG;
   return $self;
 }
 
