@@ -85,8 +85,7 @@ sub _on_close_cb {
     my ($stream, $err) = @_;
     delete $self->{$_} for qw(id stream);
     $self->emit(error => $err) if $err;
-    warn "[$self->{url}] ERROR $err\n" if DEBUG and $err;
-    warn "[$self->{url}] CLOSED\n"     if DEBUG and !$err;
+    warn qq([$self->{url}] @{[$err ? "ERROR $err" : "CLOSED"]}\n) if DEBUG;
   };
 }
 
@@ -96,9 +95,8 @@ sub _on_read_cb {
 
   return sub {
     my ($stream, $chunk) = @_;
-    my $protocol = $self->protocol;
     do { local $_ = $chunk; s!\r\n!\\r\\n!g; warn "[$self->{url}] >>> ($_)\n" } if DEBUG;
-    $protocol->parse($chunk);
+    $self->protocol->parse($chunk);
   };
 }
 
