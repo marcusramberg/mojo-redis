@@ -49,10 +49,24 @@ is @{$redis->{queue}}, 4, 'four connections in queue';
 my @res;
 delete $redis->{queue};
 $db = $redis->db;
-$db->connection->write(PING => sub { @res = @_[1, 2]; Mojo::IOLoop->stop });
+$conn->write(PING => sub { @res = @_[1, 2]; Mojo::IOLoop->stop });
 Mojo::IOLoop->start;
 is_deeply \@res, ['', 'PONG'], 'ping response';
 
+# New connection, because disconnected
+$conn = $db->connection;
+$conn->disconnect;
+$db = $redis->db;
+$db->connection->write(PING => sub { @res = @_[1, 2]; Mojo::IOLoop->stop });
+Mojo::IOLoop->start;
+isnt $db->connection, $conn, 'new connection when disconnected';
+
 is $redis->{connections}++, 7, 'connections emitted';
+
+# Fork-safety
+$conn = $db->connection;
+undef $db;
+$redis->{pid} = -1;
+isnt $redis->db->connection, $conn, 'new fork gets a new connecion';
 
 done_testing;
