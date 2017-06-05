@@ -14,6 +14,8 @@ my $conn = $db->connection;
 isa_ok($db,   'Mojo::Redis::Database');
 isa_ok($conn, 'Mojo::Redis::Connection');
 
+$redis->on(connection => sub { $redis->{connections}++ });
+
 # Create one connection
 my $connected = 0;
 my $err;
@@ -50,5 +52,7 @@ $db = $redis->db;
 $db->connection->write(PING => sub { @res = @_[1, 2]; Mojo::IOLoop->stop });
 Mojo::IOLoop->start;
 is_deeply \@res, ['', 'PONG'], 'ping response';
+
+is $redis->{connections}++, 7, 'connections emitted';
 
 done_testing;
