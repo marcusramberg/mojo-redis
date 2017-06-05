@@ -4,6 +4,7 @@ use Mojo::Base 'Mojo::EventEmitter';
 use Mojo::URL;
 use Mojo::Redis::Connection;
 use Mojo::Redis::Database;
+use Mojo::Redis::PubSub;
 
 has protocol_class => do {
   my $class = $ENV{MOJO_REDIS_PROTOCOL};
@@ -14,6 +15,13 @@ has protocol_class => do {
 };
 
 has max_connections => 5;
+
+has pubsub => sub {
+  my $pubsub = Mojo::Redis::PubSub->new(connection => $_[0]->_dequeue, redis => $_[0]);
+  Scalar::Util::weaken($pubsub->{redis});
+  return $pubsub;
+};
+
 has url => sub { Mojo::URL->new('redis://localhost:6379') };
 
 sub db { Mojo::Redis::Database->new(connection => $_[0]->_dequeue, redis => $_[0]); }

@@ -20,14 +20,13 @@ sub connect {
     sub {
       my ($protocol, $message) = @_;
       my $cb = shift @{$self->{waiting} || []};
-      $self->$cb('', $message->{data}) if $cb;
+      $cb ? $self->$cb('', $message->{data}) : $self->emit(message => $message);
       $self->_write;
     }
   );
 
   my $url = $self->url;
   my $db  = $url->path->[0];
-
   $self->{id} = $self->_loop->client(
     {address => $url->host, port => $url->port || 6379},
     sub {
@@ -42,7 +41,7 @@ sub connect {
       my $close_cb = $self->_on_close_cb;
       return $self->$close_cb($err) if $err;
 
-      warn "[$self->{url}] CONNECTED\n" if DEBUG;
+      warn "[$self->{id}] CONNECTED\n" if DEBUG;
       $stream->timeout(0);
       $stream->on(close => $close_cb);
       $stream->on(error => $close_cb);
@@ -57,7 +56,7 @@ sub connect {
     },
   );
 
-  warn "[$self->{url}] CONNECTING\n" if DEBUG;
+  warn "[$self->{id}] CONNECTING $url\n" if DEBUG;
   return $self;
 }
 
@@ -77,6 +76,7 @@ sub write {
   push @{$self->{write}},
     [$self->protocol->encode({type => '*', data => [map { +{type => '$', data => $_} } @_]}), $cb];
 
+  Scalar::Util::weaken($self);
   $self->{stream} ? $self->_loop->next_tick(sub { $self->_write }) : $self->connect;
   return $self;
 }
@@ -90,7 +90,7 @@ sub _on_close_cb {
     my ($stream, $err) = @_;
     delete $self->{$_} for qw(id stream);
     $self->emit(error => $err) if $err;
-    warn qq([$self->{url}] @{[$err ? "ERROR $err" : "CLOSED"]}\n) if DEBUG;
+    warn qq([$self->{id}] @{[$err ? "ERROR $err" : "CLOSED"]}\n) if DEBUG;
   };
 }
 
@@ -100,7 +100,7 @@ sub _on_read_cb {
   Scalar::Util::weaken($self);
   return sub {
     my ($stream, $chunk) = @_;
-    do { local $_ = $chunk; s!\r\n!\\r\\n!g; warn "[$self->{url}] >>> ($_)\n" } if DEBUG;
+    do { local $_ = $chunk; s!\r\n!\\r\\n!g; warn "[$self->{id}] >>> ($_)\n" } if DEBUG;
     $self->protocol->parse($chunk);
   };
 }
@@ -121,7 +121,7 @@ sub _write {
   }
 
   my $op = shift @$queue;
-  do { local $_ = $op->[0]; s!\r\n!\\r\\n!g; warn "[$self->{url}] <<< ($_)\n" } if DEBUG;
+  do { local $_ = $op->[0]; s!\r\n!\\r\\n!g; warn "[$self->{id}] <<< ($_)\n" } if DEBUG;
   push @{$self->{waiting}}, $op->[1] || sub { shift->emit(error => $_[1]) if $_[1] };
   $self->{stream}->write($op->[0]);
 }
