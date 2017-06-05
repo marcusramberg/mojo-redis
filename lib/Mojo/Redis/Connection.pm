@@ -2,7 +2,6 @@ package Mojo::Redis::Connection;
 use Mojo::Base 'Mojo::EventEmitter';
 
 use Mojo::IOLoop;
-use Mojo::Util;
 
 use constant DEBUG => $ENV{MOJO_REDIS_DEBUG};
 
@@ -33,6 +32,13 @@ sub connect {
     {address => $url->host, port => $url->port || 6379},
     sub {
       my ($loop, $err, $stream) = @_;
+
+      unless ($self) {
+        delete $self->{$_} for qw(id stream);
+        $stream->close;
+        return;
+      }
+
       my $close_cb = $self->_on_close_cb;
       return $self->$close_cb($err) if $err;
 
