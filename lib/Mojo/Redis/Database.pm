@@ -16,7 +16,8 @@ our @BASIC_OPERATIONS = (
   'spop',             'srandmember', 'srem',             'strlen',   'sunion',   'sunionstore',
   'ttl',              'type',        'zadd',             'zcard',    'zcount',   'zincrby',
   'zinterstore',      'zrange',      'zrangebyscore',    'zrank',    'zrem',     'zremrangebyrank',
-  'zremrangebyscore', 'zrevrange',   'zrevrangebyscore', 'zrevrank', 'zscore',   'zunionstore'
+  'zremrangebyscore', 'zrevrange',   'zrevrangebyscore', 'zrevrank', 'zscore',   'zunionstore',
+  'eval'
 );
 
 has connection => sub { Carp::confess('connection is not set') };
