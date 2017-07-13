@@ -3,3 +3,4 @@ requires "Mojolicious"     => "7.30";
 requires "Protocol::Redis" => "1.0006";
 
 test_requires "Test::More" => "0.88";
+test_requires "Test::Memory::Cycle";

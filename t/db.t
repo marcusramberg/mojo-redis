@@ -26,6 +26,12 @@ is_deeply \@res, ['', '123'], 'get';
 # DEL
 $db->del($0 => sub { @res = @_[1, 2]; Mojo::IOLoop->stop });
 Mojo::IOLoop->start;
-is_deeply \@res, ['', 1], 'get';
+is_deeply \@res, ['', 1], 'del';
+
+# EVAL
+my $lua_script = 'return(KEYS[1])';
+$db->eval($lua_script, 1, key1 => sub { @res = @_[1, 2]; Mojo::IOLoop->stop });
+Mojo::IOLoop->start;
+is_deeply \@res, ['','key1'], 'eval';
 
 done_testing;

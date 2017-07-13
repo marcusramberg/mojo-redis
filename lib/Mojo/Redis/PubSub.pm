@@ -29,7 +29,7 @@ sub notify {
 sub unlisten {
   my ($self, $name, $cb) = @_;
   my $chan = $self->{chans}{$name};
-  my $op = $name =~ /\*/ ? 'PSUBSCRIBE' : 'SUBSCRIBE';
+  my $op = $name =~ /\*/ ? 'PUNSUBSCRIBE' : 'UNSUBSCRIBE';
 
   @$chan = $cb ? grep { $cb ne $_ } @$chan : ();
   $self->connection->write($op => $name) and delete $self->{chans}{$name} unless @$chan;
